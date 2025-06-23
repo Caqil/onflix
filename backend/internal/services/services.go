@@ -23,7 +23,7 @@ type Services struct {
 func NewServices(db *mongo.Database, cfg *config.Config) *Services {
 	// Initialize individual services
 	emailService := NewEmailService(cfg)
-	stripeService := NewStripeService(cfg)
+	stripeService := NewStripeService(cfg, db)
 	tmdbService := NewTMDBService(cfg)
 	videoService := NewVideoService(cfg, db)
 	storageService := NewStorageService(cfg)

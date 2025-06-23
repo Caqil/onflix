@@ -2,28 +2,41 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"onflix/internal/config"
+	"onflix/internal/models"
+	"time"
 
 	"github.com/stripe/stripe-go/v75"
+	"github.com/stripe/stripe-go/v75/account"
+	"github.com/stripe/stripe-go/v75/billingportal/session"
+	"github.com/stripe/stripe-go/v75/coupon"
 	"github.com/stripe/stripe-go/v75/customer"
+	"github.com/stripe/stripe-go/v75/invoice"
+	"github.com/stripe/stripe-go/v75/paymentintent"
 	"github.com/stripe/stripe-go/v75/paymentmethod"
 	"github.com/stripe/stripe-go/v75/price"
 	"github.com/stripe/stripe-go/v75/product"
+	"github.com/stripe/stripe-go/v75/setupintent"
 	"github.com/stripe/stripe-go/v75/subscription"
 	"github.com/stripe/stripe-go/v75/webhook"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type StripeService struct {
 	config *config.Config
+	db     *mongo.Database // Add this line
 }
 
-func NewStripeService(cfg *config.Config) *StripeService {
+func NewStripeService(cfg *config.Config, db *mongo.Database) *StripeService {
 	// Set Stripe API key
 	stripe.Key = cfg.Stripe.SecretKey
 
 	return &StripeService{
 		config: cfg,
+		db:     db, // Add this line
 	}
 }
 
@@ -90,40 +103,51 @@ func (ss *StripeService) GetPrice(priceID string) (*stripe.Price, error) {
 	return price.Get(priceID, nil)
 }
 
-func (ss *StripeService) UpdatePrice(priceID string, params *stripe.PriceParams) (*stripe.Price, error) {
-	return price.Update(priceID, params)
+func (ss *StripeService) ListPrices(productID string) ([]*stripe.Price, error) {
+	params := &stripe.PriceListParams{
+		Product: stripe.String(productID),
+	}
+	params.Filters.AddFilter("limit", "", "100")
+
+	var prices []*stripe.Price
+	i := price.List(params)
+	for i.Next() {
+		prices = append(prices, i.Price())
+	}
+
+	return prices, i.Err()
 }
 
 // Payment Method Management
-func (ss *StripeService) AttachPaymentMethod(paymentMethodID, customerID string) error {
+func (ss *StripeService) AttachPaymentMethod(paymentMethodID, customerID string) (*stripe.PaymentMethod, error) {
 	params := &stripe.PaymentMethodAttachParams{
 		Customer: stripe.String(customerID),
 	}
 
-	_, err := paymentmethod.Attach(paymentMethodID, params)
-	return err
+	return paymentmethod.Attach(paymentMethodID, params)
 }
 
-func (ss *StripeService) DetachPaymentMethod(paymentMethodID string) error {
-	_, err := paymentmethod.Detach(paymentMethodID, nil)
-	return err
+func (ss *StripeService) DetachPaymentMethod(paymentMethodID string) (*stripe.PaymentMethod, error) {
+	return paymentmethod.Detach(paymentMethodID, nil)
 }
 
-func (ss *StripeService) ListPaymentMethods(customerID string) *paymentmethod.Iter {
+func (ss *StripeService) ListPaymentMethods(customerID string) ([]*stripe.PaymentMethod, error) {
 	params := &stripe.PaymentMethodListParams{
 		Customer: stripe.String(customerID),
 		Type:     stripe.String("card"),
 	}
 
-	return paymentmethod.List(params)
-}
+	var paymentMethods []*stripe.PaymentMethod
+	i := paymentmethod.List(params)
+	for i.Next() {
+		paymentMethods = append(paymentMethods, i.PaymentMethod())
+	}
 
-func (ss *StripeService) GetPaymentMethod(paymentMethodID string) (*stripe.PaymentMethod, error) {
-	return paymentmethod.Get(paymentMethodID, nil)
+	return paymentMethods, i.Err()
 }
 
 // Subscription Management
-func (ss *StripeService) CreateSubscription(customerID, priceID string, trialDays int64) (*stripe.Subscription, error) {
+func (ss *StripeService) CreateSubscription(customerID, priceID string) (*stripe.Subscription, error) {
 	params := &stripe.SubscriptionParams{
 		Customer: stripe.String(customerID),
 		Items: []*stripe.SubscriptionItemsParams{
@@ -131,11 +155,11 @@ func (ss *StripeService) CreateSubscription(customerID, priceID string, trialDay
 				Price: stripe.String(priceID),
 			},
 		},
+		PaymentBehavior: stripe.String("default_incomplete"),
+		PaymentSettings: &stripe.SubscriptionPaymentSettingsParams{
+			SaveDefaultPaymentMethod: stripe.String("on_subscription"),
+		},
 		Expand: []*string{stripe.String("latest_invoice.payment_intent")},
-	}
-
-	if trialDays > 0 {
-		params.TrialPeriodDays = stripe.Int64(trialDays)
 	}
 
 	return subscription.New(params)
@@ -153,15 +177,16 @@ func (ss *StripeService) UpdateSubscription(subscriptionID string, params *strip
 	return subscription.Update(subscriptionID, params)
 }
 
-func (ss *StripeService) CancelSubscription(subscriptionID string) (*stripe.Subscription, error) {
-	params := &stripe.SubscriptionCancelParams{}
-	return subscription.Cancel(subscriptionID, params)
-}
-
-func (ss *StripeService) CancelSubscriptionAtPeriodEnd(subscriptionID string) (*stripe.Subscription, error) {
+func (ss *StripeService) CancelSubscription(subscriptionID string, cancelAtPeriodEnd bool) (*stripe.Subscription, error) {
 	params := &stripe.SubscriptionParams{
-		CancelAtPeriodEnd: stripe.Bool(true),
+		CancelAtPeriodEnd: stripe.Bool(cancelAtPeriodEnd),
 	}
+
+	if !cancelAtPeriodEnd {
+		// Cancel immediately
+		return subscription.Cancel(subscriptionID, &stripe.SubscriptionCancelParams{})
+	}
+
 	return subscription.Update(subscriptionID, params)
 }
 
@@ -174,7 +199,7 @@ func (ss *StripeService) ReactivateSubscription(subscriptionID string) (*stripe.
 
 func (ss *StripeService) ChangeSubscriptionPrice(subscriptionID, newPriceID string) (*stripe.Subscription, error) {
 	// Get current subscription
-	subscription, err := ss.GetSubscription(subscriptionID)
+	sub, err := ss.GetSubscription(subscriptionID)
 	if err != nil {
 		return nil, err
 	}
@@ -183,6 +208,7 @@ func (ss *StripeService) ChangeSubscriptionPrice(subscriptionID, newPriceID stri
 	params := &stripe.SubscriptionParams{
 		Items: []*stripe.SubscriptionItemsParams{
 			{
+				ID:    stripe.String(sub.Items.Data[0].ID),
 				Price: stripe.String(newPriceID),
 			},
 		},
@@ -211,11 +237,11 @@ func (ss *StripeService) ResumeSubscription(subscriptionID string) (*stripe.Subs
 
 // Invoice Management
 func (ss *StripeService) GetUpcomingInvoice(customerID string) (*stripe.Invoice, error) {
-	params := &stripe.InvoiceParams{
+	params := &stripe.InvoiceUpcomingParams{
 		Customer: stripe.String(customerID),
 	}
 
-	return stripe.Invoice{}, nil // Placeholder - implement based on Stripe API
+	return invoice.Upcoming(params)
 }
 
 func (ss *StripeService) ListInvoices(customerID string) ([]*stripe.Invoice, error) {
@@ -225,12 +251,20 @@ func (ss *StripeService) ListInvoices(customerID string) ([]*stripe.Invoice, err
 	params.Filters.AddFilter("limit", "", "100")
 
 	var invoices []*stripe.Invoice
-	i := stripe.Invoice{}.List(params)
+	i := invoice.List(params)
 	for i.Next() {
 		invoices = append(invoices, i.Invoice())
 	}
 
 	return invoices, i.Err()
+}
+
+func (ss *StripeService) GetInvoice(invoiceID string) (*stripe.Invoice, error) {
+	return invoice.Get(invoiceID, nil)
+}
+
+func (ss *StripeService) PayInvoice(invoiceID string) (*stripe.Invoice, error) {
+	return invoice.Pay(invoiceID, nil)
 }
 
 // Payment Intent Management
@@ -239,14 +273,21 @@ func (ss *StripeService) CreatePaymentIntent(amount int64, currency, customerID 
 		Amount:   stripe.Int64(amount),
 		Currency: stripe.String(currency),
 		Customer: stripe.String(customerID),
+		AutomaticPaymentMethods: &stripe.PaymentIntentAutomaticPaymentMethodsParams{
+			Enabled: stripe.Bool(true),
+		},
 	}
 
-	return stripe.PaymentIntent{}, nil // Placeholder - implement based on Stripe API
+	return paymentintent.New(params)
 }
 
 func (ss *StripeService) ConfirmPaymentIntent(paymentIntentID string) (*stripe.PaymentIntent, error) {
 	params := &stripe.PaymentIntentConfirmParams{}
-	return stripe.PaymentIntent{}, nil // Placeholder - implement based on Stripe API
+	return paymentintent.Confirm(paymentIntentID, params)
+}
+
+func (ss *StripeService) GetPaymentIntent(paymentIntentID string) (*stripe.PaymentIntent, error) {
+	return paymentintent.Get(paymentIntentID, nil)
 }
 
 // Setup Intent Management (for adding payment methods)
@@ -254,9 +295,17 @@ func (ss *StripeService) CreateSetupIntent(customerID string) (*stripe.SetupInte
 	params := &stripe.SetupIntentParams{
 		Customer: stripe.String(customerID),
 		Usage:    stripe.String("off_session"),
+		AutomaticPaymentMethods: &stripe.SetupIntentAutomaticPaymentMethodsParams{
+			Enabled: stripe.Bool(true),
+		},
 	}
 
-	return stripe.SetupIntent{}, nil // Placeholder - implement based on Stripe API
+	return setupintent.New(params)
+}
+
+func (ss *StripeService) ConfirmSetupIntent(setupIntentID string) (*stripe.SetupIntent, error) {
+	params := &stripe.SetupIntentConfirmParams{}
+	return setupintent.Confirm(setupIntentID, params)
 }
 
 // Webhook Management
@@ -274,11 +323,15 @@ func (ss *StripeService) CreateCoupon(id, name string, percentOff int64, duratio
 	params := &stripe.CouponParams{
 		ID:         stripe.String(id),
 		Name:       stripe.String(name),
-		PercentOff: stripe.Int64(percentOff),
+		PercentOff: stripe.Float64(float64(percentOff)),
 		Duration:   stripe.String(duration),
 	}
 
-	return stripe.Coupon{}, nil // Placeholder - implement based on Stripe API
+	return coupon.New(params)
+}
+
+func (ss *StripeService) GetCoupon(couponID string) (*stripe.Coupon, error) {
+	return coupon.Get(couponID, nil)
 }
 
 func (ss *StripeService) ApplyCouponToCustomer(customerID, couponID string) (*stripe.Customer, error) {
@@ -296,48 +349,58 @@ func (ss *StripeService) GetCustomerUsage(customerID string) (map[string]interfa
 		Customer: stripe.String(customerID),
 	}
 
-	subscriptions := subscription.List(params)
 	usage := make(map[string]interface{})
+	i := subscription.List(params)
 
-	for subscriptions.Next() {
-		sub := subscriptions.Subscription()
-		usage[subscription.ID] = map[string]interface{}{
-			"status":               subscription.Status,
-			"current_period_start": subscription.CurrentPeriodStart,
-			"current_period_end":   subscription.CurrentPeriodEnd,
-			"cancel_at":            subscription.CancelAt,
+	for i.Next() {
+		sub := i.Subscription()
+		usage[sub.ID] = map[string]interface{}{
+			"status":               sub.Status,
+			"current_period_start": sub.CurrentPeriodStart,
+			"current_period_end":   sub.CurrentPeriodEnd,
+			"cancel_at":            sub.CancelAt,
 		}
 	}
 
-	return usage, subscriptions.Err()
+	return usage, i.Err()
 }
 
 func (ss *StripeService) GetRevenueMetrics(startDate, endDate int64) (map[string]interface{}, error) {
-	// This would typically use Stripe's Sigma or reporting features
-	// For now, return basic structure
-	metrics := map[string]interface{}{
-		"total_revenue":        0.0,
-		"subscription_revenue": 0.0,
-		"one_time_revenue":     0.0,
-		"refunds":              0.0,
-		"net_revenue":          0.0,
+	// Get invoices in date range
+	params := &stripe.InvoiceListParams{
+		Created: stripe.Int64(startDate),
+		//Created: &stripe.RangeQueryParams{
+		//	GTE: startDate,
+		//	LTE: endDate,
+		//},
+	}
+	params.Filters.AddFilter("limit", "", "100")
+	params.Filters.AddFilter("status", "", "paid")
+
+	var totalRevenue int64
+	var subscriptionRevenue int64
+	var oneTimeRevenue int64
+
+	i := invoice.List(params)
+	for i.Next() {
+		inv := i.Invoice()
+		totalRevenue += inv.AmountPaid
+
+		if inv.Subscription != nil {
+			subscriptionRevenue += inv.AmountPaid
+		} else {
+			oneTimeRevenue += inv.AmountPaid
+		}
 	}
 
-	return metrics, nil
-}
+	metrics := map[string]interface{}{
+		"total_revenue":        ss.FormatAmountFromCents(totalRevenue),
+		"subscription_revenue": ss.FormatAmountFromCents(subscriptionRevenue),
+		"one_time_revenue":     ss.FormatAmountFromCents(oneTimeRevenue),
+		"net_revenue":          ss.FormatAmountFromCents(totalRevenue),
+	}
 
-// Tax Management
-func (ss *StripeService) CalculateTax(amount int64, currency, customerID string) (*stripe.TaxRate, error) {
-	// Placeholder for tax calculation
-	// In production, you might use Stripe Tax or integrate with a tax service
-	return &stripe.TaxRate{}, nil
-}
-
-// Fraud Prevention
-func (ss *StripeService) GetRadarRiskScore(paymentIntentID string) (int64, error) {
-	// Get Radar risk score for a payment
-	// This would integrate with Stripe Radar
-	return 0, nil
+	return metrics, i.Err()
 }
 
 // Subscription Trial Management
@@ -351,10 +414,17 @@ func (ss *StripeService) ExtendTrial(subscriptionID string, trialEnd int64) (*st
 
 // Billing Portal
 func (ss *StripeService) CreateBillingPortalSession(customerID, returnURL string) (string, error) {
-	// Create a billing portal session for customer self-service
-	// This would use Stripe's Customer Portal
-	portalURL := fmt.Sprintf("https://billing.stripe.com/session/%s", customerID)
-	return portalURL, nil
+	params := &stripe.BillingPortalSessionParams{
+		Customer:  stripe.String(customerID),
+		ReturnURL: stripe.String(returnURL),
+	}
+
+	s, err := session.New(params)
+	if err != nil {
+		return "", err
+	}
+
+	return s.URL, nil
 }
 
 // Connect Accounts (for marketplace scenarios)
@@ -365,43 +435,106 @@ func (ss *StripeService) CreateConnectAccount(email, country string) (*stripe.Ac
 		Country: stripe.String(country),
 	}
 
-	return stripe.Account{}, nil // Placeholder - implement based on Stripe API
+	return account.New(params)
 }
 
-// Webhook Event Handlers (used by webhook controller)
+// Webhook Event Handlers
 func (ss *StripeService) HandleInvoicePaymentSucceeded(invoice *stripe.Invoice) error {
 	// Process successful invoice payment
-	// Update subscription status, send confirmation email, etc.
+	if invoice.Subscription != nil {
+		// Update subscription status in database
+		_, err := ss.db.Collection("users").UpdateOne(
+			context.Background(),
+			bson.M{"subscription.stripe_subscription_id": invoice.Subscription.ID},
+			bson.M{"$set": bson.M{
+				"subscription.status":       models.SubscriptionStatusActive,
+				"subscription.last_payment": time.Unix(invoice.StatusTransitions.PaidAt, 0),
+				"subscription.updated_at":   time.Now(),
+			}},
+		)
+		return err
+	}
 	return nil
 }
 
 func (ss *StripeService) HandleInvoicePaymentFailed(invoice *stripe.Invoice) error {
 	// Process failed invoice payment
-	// Update subscription status, send failure notification, etc.
+	if invoice.Subscription != nil {
+		// Update subscription status in database
+		_, err := ss.db.Collection("users").UpdateOne(
+			context.Background(),
+			bson.M{"subscription.stripe_subscription_id": invoice.Subscription.ID},
+			bson.M{"$set": bson.M{
+				"subscription.status":     models.SubscriptionStatusPastDue,
+				"subscription.updated_at": time.Now(),
+			}},
+		)
+		return err
+	}
 	return nil
 }
 
 func (ss *StripeService) HandleSubscriptionUpdated(subscription *stripe.Subscription) error {
 	// Process subscription updates
-	// Update local database, send notifications, etc.
-	return nil
+	updateFields := bson.M{
+		"subscription.status":     models.SubscriptionStatus(subscription.Status),
+		"subscription.updated_at": time.Now(),
+	}
+
+	if subscription.CancelAt > 0 {
+		updateFields["subscription.cancel_at"] = time.Unix(subscription.CancelAt, 0)
+	}
+
+	if subscription.CurrentPeriodEnd > 0 {
+		updateFields["subscription.current_period_end"] = time.Unix(subscription.CurrentPeriodEnd, 0)
+	}
+
+	_, err := ss.db.Collection("users").UpdateOne(
+		context.Background(),
+		bson.M{"subscription.stripe_subscription_id": subscription.ID},
+		bson.M{"$set": updateFields},
+	)
+	return err
 }
 
 func (ss *StripeService) HandleSubscriptionDeleted(subscription *stripe.Subscription) error {
 	// Process subscription cancellation
-	// Update local database, send cancellation email, etc.
-	return nil
+	_, err := ss.db.Collection("users").UpdateOne(
+		context.Background(),
+		bson.M{"subscription.stripe_subscription_id": subscription.ID},
+		bson.M{"$set": bson.M{
+			"subscription.status":     models.SubscriptionStatus("canceled"),
+			"subscription.updated_at": time.Now(),
+		}},
+	)
+	return err
 }
 
 func (ss *StripeService) HandleCustomerUpdated(customer *stripe.Customer) error {
 	// Process customer updates
-	// Sync customer data with local database
-	return nil
+	updateFields := bson.M{
+		"updated_at": time.Now(),
+	}
+
+	if customer.Email != "" {
+		updateFields["email"] = customer.Email
+	}
+
+	if customer.Name != "" {
+		updateFields["first_name"] = customer.Name
+	}
+
+	_, err := ss.db.Collection("users").UpdateOne(
+		context.Background(),
+		bson.M{"subscription.stripe_customer_id": customer.ID},
+		bson.M{"$set": updateFields},
+	)
+	return err
 }
 
 func (ss *StripeService) HandlePaymentMethodAttached(paymentMethod *stripe.PaymentMethod) error {
 	// Process payment method attachment
-	// Send confirmation email, update customer preferences, etc.
+	// You could send confirmation email or update preferences here
 	return nil
 }
 
@@ -460,7 +593,6 @@ func (ss *StripeService) HandleStripeError(err error) *StripeError {
 			Message: stripeErr.Msg,
 		}
 	}
-
 	return &StripeError{
 		Type:    "unknown",
 		Code:    "unknown",
@@ -468,33 +600,40 @@ func (ss *StripeService) HandleStripeError(err error) *StripeError {
 	}
 }
 
-// Testing and Development
-func (ss *StripeService) CreateTestCustomer() (*stripe.Customer, error) {
-	params := &stripe.CustomerParams{
-		Email: stripe.String("test@example.com"),
-		Name:  stripe.String("Test Customer"),
-	}
-
-	return customer.New(params)
+// Additional helper methods
+func (ss *StripeService) CreateCustomerPortalURL(customerID, returnURL string) (string, error) {
+	return ss.CreateBillingPortalSession(customerID, returnURL)
 }
 
-func (ss *StripeService) CreateTestSubscription(customerID, priceID string) (*stripe.Subscription, error) {
+func (ss *StripeService) GetSubscriptionsByCustomer(customerID string) ([]*stripe.Subscription, error) {
+	params := &stripe.SubscriptionListParams{
+		Customer: stripe.String(customerID),
+	}
+
+	var subscriptions []*stripe.Subscription
+	i := subscription.List(params)
+	for i.Next() {
+		subscriptions = append(subscriptions, i.Subscription())
+	}
+
+	return subscriptions, i.Err()
+}
+
+func (ss *StripeService) CreateTrialSubscription(customerID, priceID string, trialDays int64) (*stripe.Subscription, error) {
+	trialEnd := time.Now().AddDate(0, 0, int(trialDays)).Unix()
+
 	params := &stripe.SubscriptionParams{
 		Customer: stripe.String(customerID),
-		Items: []*stripe.SubscriptionItemParams{
+		Items: []*stripe.SubscriptionItemsParams{
 			{
 				Price: stripe.String(priceID),
 			},
 		},
-		TrialPeriodDays: stripe.Int64(7), // 7-day trial for testing
+		TrialEnd: stripe.Int64(trialEnd),
+		PaymentSettings: &stripe.SubscriptionPaymentSettingsParams{
+			SaveDefaultPaymentMethod: stripe.String("on_subscription"),
+		},
 	}
 
 	return subscription.New(params)
-}
-
-// Health Check
-func (ss *StripeService) HealthCheck() error {
-	// Test Stripe API connectivity
-	_, err := stripe.Account{}.Get()
-	return err
 }

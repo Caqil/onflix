@@ -72,7 +72,7 @@ func (uc *UserController) DeleteAccount(c *gin.Context) {
 
 	// Cancel subscription if active
 	if u.Subscription != nil && u.Subscription.Status == models.SubscriptionStatusActive {
-		go uc.services.StripeService.CancelSubscription(u.Subscription.StripeSubscriptionID)
+		go uc.services.StripeService.CancelSubscription(u.Subscription.StripeSubscriptionID, false)
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, "Account deleted successfully", nil)

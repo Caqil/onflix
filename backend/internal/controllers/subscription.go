@@ -240,7 +240,7 @@ func (sc *SubscriptionController) Subscribe(c *gin.Context) {
 	}
 
 	// Attach payment method to customer
-	err = sc.services.StripeService.AttachPaymentMethod(req.PaymentMethodID, stripeCustomerID)
+	_, err = sc.services.StripeService.AttachPaymentMethod(req.PaymentMethodID, stripeCustomerID)
 	if err != nil {
 		utils.BadRequestResponse(c, fmt.Sprintf("Failed to attach payment method: %v", err))
 		return
