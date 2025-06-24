@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { PaginationMeta } from "../../types";
+import { cn } from "@/lib/utils/helpers";
 
 interface PaginationProps {
   pagination: PaginationMeta;

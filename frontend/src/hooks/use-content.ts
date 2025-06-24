@@ -1,7 +1,8 @@
 
+import { WatchProgress } from '@/types';
 import { Content, contentAPI, ContentFilters, SearchParams } from '../lib/api';
 import { useApi } from './use-api';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 export const useContent = (filters?: ContentFilters) => {
   const [currentFilters, setCurrentFilters] = useState<ContentFilters>(filters || {});

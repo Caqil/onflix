@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react';
+import { ApiState } from '@/types';
+import { useCallback, useEffect, useState } from 'react';
 
 
 interface UseApiOptions<T> {

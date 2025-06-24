@@ -22,7 +22,7 @@ interface UseStreamingOptions {
 export const useStreaming = (options: UseStreamingOptions) => {
   const {
     contentId,
-    quality = 'auto',
+    quality = '720p',
     autoPlay = false,
     onProgress,
     onQualityChange,

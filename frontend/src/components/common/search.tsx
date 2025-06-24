@@ -1,9 +1,18 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from 'react';
 import { useRouter } from "next/navigation";
 import { Search, X, Filter, Clock } from "lucide-react";
 import { useDebounce } from "../../hooks/use-debounce";
 import { storage } from "../../lib/utils/helpers";
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
+import { ContentFilters, ContentGrid } from '..';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Badge } from '../ui/badge';
+import { Checkbox } from '../ui/checkbox';
+import { CONTENT_TYPES, GENRES } from '@/lib/utils/constants';
+import { Label } from '../ui/label';
+import { useContentSearch } from '@/hooks/use-content';
 
 interface SearchBarProps {
   placeholder?: string;

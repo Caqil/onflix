@@ -47,6 +47,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useDebounce } from "@/hooks/use-debounce";
+import { AdminUser, BanUserData, UserFilters } from "@/types";
+import { usePagination } from "@/hooks/use-pagination";
+import { adminAPI } from "@/lib/api";
+import { formatDate, formatRelativeTime } from "@/lib/utils/helpers";
 
 interface UserTableProps {
   className?: string;

@@ -11,9 +11,9 @@ import {
   Settings,
   Crown,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,13 +21,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import { useAuthContext } from "@/context/auth-context";
-import { useAppContext } from "@/context/app-context";
-import { useDebounce } from "@/hooks/use-debounce";
-import { APP_CONFIG } from "@/lib/utils/constants";
+} from "../ui/dropdown-menu";
+import { Badge } from "../ui/badge";
+import { useAppContext, useAuthContext } from "../../context";
+import { useDebounce } from "../../hooks/use-debounce";
 import { cn } from "@/lib/utils/helpers";
+import { APP_CONFIG } from "@/lib/utils/constants";
 
 interface HeaderProps {
   className?: string;

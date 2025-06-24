@@ -1,4 +1,7 @@
-import useEffect from 'react';
+import { authAPI } from '@/lib/api';
+import { authManager, AuthState } from '@/lib/auth/manager';
+import { ChangePasswordData, ForgotPasswordData, LoginCredentials, MutationState, RegisterData, ResetPasswordData } from '@/types';
+import React, { useState, useEffect, useCallback } from 'react';
 
 export const useAuth = () => {
   const [authState, setAuthState] = useState<AuthState>(() => authManager.getAuthState());

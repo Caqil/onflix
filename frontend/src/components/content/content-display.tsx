@@ -6,8 +6,6 @@ import { Star, Play, Plus, Check, Clock, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/components/ui/use-toast";
-import { useAuthContext } from "@/context/auth-context";
 import { useAppContext } from "@/context/app-context";
 import userAPI from "@/lib/api/user";
 import type { Content, WatchlistItem } from "@/types";
@@ -19,6 +17,8 @@ import {
   truncateText,
 } from "@/lib/utils/helpers";
 import { cn } from "@/lib/utils/helpers";
+import { useAuthContext } from "@/context";
+import { toast } from "sonner";
 
 interface ContentCardProps {
   content: Content;
@@ -39,7 +39,6 @@ export const ContentCard: React.FC<ContentCardProps> = ({
 }) => {
   const { isAuthenticated, canStream } = useAuthContext();
   const { addNotification } = useAppContext();
-  const { toast } = useToast();
   const [isAddingToWatchlist, setIsAddingToWatchlist] = React.useState(false);
 
   const sizeClasses = {
@@ -50,11 +49,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({
 
   const handleWatchlistToggle = async () => {
     if (!isAuthenticated) {
-      toast({
-        title: "Sign in required",
-        description: "Please sign in to add content to your watchlist.",
-        variant: "destructive",
-      });
+      toast("Please sign in to add content to your watchlist.");
       return;
     }
 
@@ -77,11 +72,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({
       }
       onWatchlistChange?.();
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update watchlist",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Failed to update watchlist");
     } finally {
       setIsAddingToWatchlist(false);
     }
@@ -89,11 +80,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({
 
   const handlePlay = () => {
     if (!canStream()) {
-      toast({
-        title: "Subscription Required",
-        description: "Please upgrade to a premium plan to start streaming.",
-        variant: "destructive",
-      });
+      toast("Please upgrade to a premium plan to start streaming.");
       return;
     }
   };
