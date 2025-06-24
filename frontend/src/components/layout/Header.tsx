@@ -18,7 +18,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SearchBar } from "@/components/common/SearchBar";
 
 export function Header() {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout } = useAuth();
+  const isAdmin = user?.role === "admin";
   const router = useRouter();
   const [showSearch, setShowSearch] = useState(false);
 
@@ -103,12 +104,12 @@ export function Header() {
                 >
                   <Avatar className="h-8 w-8">
                     <AvatarImage
-                      src={user?.profile?.avatar}
-                      alt={user?.firstName}
+                      src={user?.avatar_url}
+                      alt={user?.first_name}
                     />
                     <AvatarFallback>
-                      {user?.firstName?.charAt(0)}
-                      {user?.lastName?.charAt(0)}
+                      {user?.first_name?.charAt(0)}
+                      {user?.last_name?.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -117,7 +118,7 @@ export function Header() {
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">
-                      {user?.firstName} {user?.lastName}
+                      {user?.first_name} {user?.last_name}
                     </p>
                     <p className="text-xs leading-none text-muted-foreground">
                       {user?.email}

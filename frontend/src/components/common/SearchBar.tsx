@@ -6,7 +6,7 @@ import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useContentStore } from "@/hooks/useContent";
+import { useContentStore } from "@/store/contentStore";
 
 interface SearchBarProps {
   onClose?: () => void;

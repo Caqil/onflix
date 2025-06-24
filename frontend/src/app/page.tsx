@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useContentStore } from "@/hooks/useContent";
 import { Header } from "@/components/layout/Header";
 import { LoadingSpinner } from "@/components/layout/LoadingSpinner";
 import { ContentRow } from "@/components/home/ContentRow";
@@ -11,6 +10,7 @@ import { FeatureSection } from "@/components/home/FeatureSection";
 import { LandingHero } from "@/components/home/LandingHero";
 import { PricingSection } from "@/components/home/PricingSection";
 import { Footer } from "react-day-picker";
+import { useContentStore } from "@/store/contentStore";
 
 export default function HomePage() {
   const { isAuthenticated } = useAuth();

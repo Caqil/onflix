@@ -33,12 +33,12 @@ export default function AdminContentPage() {
   const fetchContent = async () => {
     try {
       setIsLoading(true);
-      const response = await adminAPI.getContent({
+      const response = await adminAPI.getAllContent({
         page: currentPage,
         limit: 10,
       });
       setContent(response.data.data!);
-      setTotalPages(response.data.pagination.totalPages);
+      setTotalPages(response.data.pagination.total_pages);
     } catch (error) {
       console.error("Failed to fetch content:", error);
     } finally {
@@ -147,7 +147,7 @@ export default function AdminContentPage() {
                     </TableCell>
                     <TableCell>{getStatusBadge(item.status)}</TableCell>
                     <TableCell>
-                      {new Date(item.releaseDate).toLocaleDateString()}
+                      {new Date(item.release_date).toLocaleDateString()}
                     </TableCell>
                     <TableCell>★ {item.rating?.toFixed(1) || "N/A"}</TableCell>
                     <TableCell>

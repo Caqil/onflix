@@ -5,11 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { ContentGrid } from "@/components/content/ContentGrid";
 import { GenreFilter } from "@/components/content/GenreFilter";
-import { useContentStore } from "@/hooks/useContent";
 import { LoadingSpinner } from "@/components/layout/LoadingSpinner";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { contentAPI } from "@/lib/api";
-import { Content, Genre } from "@/lib/types";
+import { useContentStore } from "@/store/contentStore";
+import { Content } from "@/lib/types";
 
 export default function BrowsePage() {
   const searchParams = useSearchParams();
@@ -55,7 +55,7 @@ export default function BrowsePage() {
 
   const getPageTitle = () => {
     if (selectedGenre) {
-      const genre = genres.find((g) => g.slug === selectedGenre);
+      const genre = genres.find((g) => g.genre === selectedGenre);
       return genre ? `${genre.name} Movies & Shows` : "Browse Content";
     }
     if (contentType === "movie") return "Movies";

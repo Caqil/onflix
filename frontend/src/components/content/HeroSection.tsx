@@ -19,7 +19,7 @@ export function HeroSection({ content }: HeroSectionProps) {
       {/* Background Image */}
       <div className="absolute inset-0">
         <Image
-          src={content.backdrop}
+          src={content.backdrop_url || ""}
           alt={content.title}
           fill
           className="object-cover"
@@ -42,7 +42,7 @@ export function HeroSection({ content }: HeroSectionProps) {
             </p>
 
             <div className="flex items-center gap-2 text-sm text-gray-300 mb-8">
-              <span>{new Date(content.releaseDate).getFullYear()}</span>
+              <span>{new Date(content.release_date).getFullYear()}</span>
               <span>•</span>
               <span className="uppercase">
                 {content.type.replace("_", " ")}

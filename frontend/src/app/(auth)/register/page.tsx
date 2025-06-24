@@ -125,7 +125,7 @@ export default function RegisterPage() {
         last_name: formData.lastName.trim(),
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
-        acceptTerms: formData.acceptTerms,
+        accept_terms: formData.acceptTerms,
         newsletter: formData.newsletter,
       });
       router.push("/");

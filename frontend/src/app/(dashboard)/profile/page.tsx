@@ -33,8 +33,8 @@ export default function ProfilePage() {
   const { user, setUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
-    firstName: user?.firstName || "",
-    lastName: user?.lastName || "",
+    firstName: user?.first_name || "",
+    lastName: user?.last_name || "",
     email: user?.email || "",
     dateOfBirth: user?.profile?.dateOfBirth || "",
     country: user?.profile?.country || "",

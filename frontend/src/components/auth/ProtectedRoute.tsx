@@ -18,7 +18,7 @@ export function ProtectedRoute({
   requireAdmin = false,
   requireSubscription = false,
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, user, isAdmin, hasActiveSubscription } =
+  const { isAuthenticated, isLoading, user } =
     useAuth();
   const router = useRouter();
 
@@ -29,12 +29,12 @@ export function ProtectedRoute({
         return;
       }
 
-      if (requireAdmin && !isAdmin) {
+      if (requireAdmin) {
         router.push("/");
         return;
       }
 
-      if (requireSubscription && !hasActiveSubscription) {
+      if (requireSubscription) {
         router.push("/subscription");
         return;
       }
@@ -47,8 +47,6 @@ export function ProtectedRoute({
     requireAdmin,
     requireSubscription,
     router,
-    isAdmin,
-    hasActiveSubscription,
   ]);
 
   if (isLoading) {
@@ -59,13 +57,6 @@ export function ProtectedRoute({
     return null;
   }
 
-  if (requireAdmin && !isAdmin) {
-    return null;
-  }
-
-  if (requireSubscription && !hasActiveSubscription) {
-    return null;
-  }
 
   return <>{children}</>;
 }

@@ -1,46 +1,64 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
+import { useRouter } from 'next/navigation';
 
-export const useAuth = () => {
-  const {
-    user,
-    isAuthenticated,
-    isLoading,
-    error,
-    login,
-    register,
-    logout,
-    clearError,
-    refreshToken,
-  } = useAuthStore();
+export function useAuth() {
+  const router = useRouter();
+  const authStore = useAuthStore();
 
-  // FIXED: Remove potentially problematic useEffect that could cause loops
-  // The auth state is already managed by the store and axios interceptors
-  // No need for additional token checking in the hook
+  // Auto-redirect based on auth state
+  const redirectIfNotAuthenticated = (redirectTo: string = '/login') => {
+    if (!authStore.isAuthenticated) {
+      router.push(redirectTo);
+      return false;
+    }
+    return true;
+  };
+
+  const redirectIfAuthenticated = (redirectTo: string = '/browse') => {
+    if (authStore.isAuthenticated) {
+      router.push(redirectTo);
+      return false;
+    }
+    return true;
+  };
+
+  // Validate token on mount and periodically
+  useEffect(() => {
+    if (authStore.isAuthenticated && authStore.tokens?.accessToken) {
+      authStore.validateToken().catch(() => {
+        // Token validation failed, logout user
+        authStore.logout();
+      });
+    }
+  }, []);
+
+  // Auto-refresh token before expiry
+  useEffect(() => {
+    if (authStore.tokens?.expiresAt) {
+      const expiryTime = new Date(authStore.tokens.expiresAt).getTime();
+      const currentTime = Date.now();
+      const timeUntilExpiry = expiryTime - currentTime;
+      
+      // Refresh 5 minutes before expiry
+      const refreshTime = timeUntilExpiry - (5 * 60 * 1000);
+      
+      if (refreshTime > 0) {
+        const timeoutId = setTimeout(() => {
+          authStore.refreshToken().catch(() => {
+            authStore.logout();
+          });
+        }, refreshTime);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, [authStore.tokens]);
 
   return {
-    // State
-    user,
-    isAuthenticated,
-    isLoading,
-    error,
-    
-    // Actions
-    login,
-    register,
-    logout,
-    clearError,
-    refreshToken,
-    
-    // Computed properties
-    isAdmin: user?.role === 'admin',
-    isModerator: user?.role === 'moderator',
-    hasActiveSubscription: user?.subscription?.status === 'active',
-    isEmailVerified: user?.isEmailVerified || false,
-    
-    // Utility functions
-    getUserName: () => user ? `${user.firstName} ${user.lastName}` : '',
-    getUserInitials: () => user ? `${user.firstName?.charAt(0) || ''}${user.lastName?.charAt(0) || ''}`.toUpperCase() : 'U',
-    canAccessAdmin: () => user?.role === 'admin' || user?.role === 'moderator',
+    ...authStore,
+    redirectIfNotAuthenticated,
+    redirectIfAuthenticated,
   };
-};
+}
+

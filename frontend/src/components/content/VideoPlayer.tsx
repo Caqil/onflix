@@ -49,7 +49,7 @@ export function VideoPlayer({
 
   const playerRef = useRef<ReactPlayer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const controlsTimeoutRef = useRef<NodeJS.Timeout>();
+  const controlsTimeoutRef = useRef<NodeJS.Timeout>(null);
 
   useEffect(() => {
     if (!streamingUrl) {
@@ -90,7 +90,7 @@ export function VideoPlayer({
 
   const fetchStreamingUrl = async () => {
     try {
-      const response = await contentAPI.getStreamingUrl(contentId);
+      const response = await contentAPI.stream(contentId);
       setActualStreamingUrl(response.data.data?.streaming_url);
     } catch (error) {
       console.error("Failed to get streaming URL:", error);
@@ -109,7 +109,14 @@ export function VideoPlayer({
 
   const updateWatchProgress = async (currentTime: number) => {
     try {
-      await userAPI.updateWatchProgress(contentId, currentTime, duration);
+      // Use the current user's profile ID - you may need to get this from context, props, or session
+      const profileId = localStorage.getItem('profileId') || ''; // Replace with actual way to get profile ID
+      await userAPI.updateWatchProgress({ 
+        content_id: contentId, 
+        profile_id: profileId,
+        progress: currentTime, 
+        duration 
+      });
     } catch (error) {
       console.error("Failed to update watch progress:", error);
     }

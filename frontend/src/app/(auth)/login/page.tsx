@@ -80,7 +80,7 @@ export default function LoginPage() {
       await login({
         email: formData.email,
         password: formData.password,
-        rememberMe: formData.rememberMe,
+        remember_me: formData.rememberMe,
       });
       router.push("/");
     } catch (error) {

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Content } from "@/lib/types";
-import { ContentCard } from "@/components/content/ContentCard";
+import ContentCard from "@/components/content/ContentCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

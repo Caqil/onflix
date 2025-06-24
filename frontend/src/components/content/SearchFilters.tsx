@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { useContent } from "@/hooks/useContent";
+import { useContentStore } from "@/store/contentStore";
 
 interface SearchFiltersProps {
   filters: any;
@@ -22,7 +22,7 @@ interface SearchFiltersProps {
 
 export function SearchFilters({ filters, onFilterChange }: SearchFiltersProps) {
   const [showFilters, setShowFilters] = useState(false);
-  const { genres } = useContent();
+  const { genres } = useContentStore();
 
   const handleFilterUpdate = (key: string, value: any) => {
     const newFilters = { ...filters, [key]: value };
