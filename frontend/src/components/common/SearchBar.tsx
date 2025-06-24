@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useContentStore } from "@/store/contentStore";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useContentStore } from "@/hooks/useContent";
 
 interface SearchBarProps {
   onClose?: () => void;

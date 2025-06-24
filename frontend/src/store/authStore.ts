@@ -32,7 +32,16 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         try {
           const response = await authAPI.login(credentials);
-          const { user, tokens } = response.data.data!;
+          
+          // Go API returns: { user, access_token, refresh_token, expires_at }
+          const authData = response.data.data!;
+          const user = authData.user;
+          const tokens: AuthTokens = {
+            accessToken: authData.access_token,
+            refreshToken: authData.refresh_token,
+            expiresAt: authData.expires_at,
+            tokenType: 'Bearer'
+          };
           
           // Store tokens in localStorage
           localStorage.setItem('accessToken', tokens.accessToken);
@@ -60,7 +69,16 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         try {
           const response = await authAPI.register(data);
-          const { user, tokens } = response.data.data!;
+          
+          // Go API returns: { user, access_token, refresh_token, expires_at }
+          const authData = response.data.data!;
+          const user = authData.user;
+          const tokens: AuthTokens = {
+            accessToken: authData.access_token,
+            refreshToken: authData.refresh_token,
+            expiresAt: authData.expires_at,
+            tokenType: 'Bearer'
+          };
           
           localStorage.setItem('accessToken', tokens.accessToken);
           localStorage.setItem('refreshToken', tokens.refreshToken);
@@ -83,15 +101,24 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      logout: () => {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        set({
-          user: null,
-          tokens: null,
-          isAuthenticated: false,
-          error: null,
-        });
+      logout: async () => {
+        try {
+          // Call logout endpoint to invalidate token on server
+          await authAPI.logout();
+        } catch (error) {
+          // Continue with logout even if server call fails
+          console.error('Logout API call failed:', error);
+        } finally {
+          // Clear local storage and state
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          set({
+            user: null,
+            tokens: null,
+            isAuthenticated: false,
+            error: null,
+          });
+        }
       },
 
       refreshToken: async () => {
@@ -103,13 +130,21 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const response = await authAPI.refreshToken(refreshToken);
-          const tokens = response.data.data!;
+          const tokensData = response.data.data!;
+          
+          const tokens: AuthTokens = {
+            accessToken: tokensData.access_token,
+            refreshToken: tokensData.refresh_token || refreshToken,
+            expiresAt: tokensData.expires_at,
+            tokenType: 'Bearer'
+          };
           
           localStorage.setItem('accessToken', tokens.accessToken);
           localStorage.setItem('refreshToken', tokens.refreshToken);
           
           set({ tokens });
         } catch (error) {
+          console.error('Token refresh failed:', error);
           get().logout();
         }
       },

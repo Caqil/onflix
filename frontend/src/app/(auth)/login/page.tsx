@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -15,22 +16,76 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/layout/LoadingSpinner";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    rememberMe: false,
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
+
   const { login, isLoading, error, clearError } = useAuth();
   const router = useRouter();
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+
+    // Clear validation error when user starts typing
+    if (validationErrors[name]) {
+      setValidationErrors((prev) => {
+        const { [name]: _, ...rest } = prev;
+        return rest;
+      });
+    }
+  };
+
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.email.trim()) {
+      errors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      errors.email = "Email is invalid";
+    }
+
+    if (!formData.password) {
+      errors.password = "Password is required";
+    } else if (formData.password.length < 6) {
+      errors.password = "Password must be at least 6 characters";
+    }
+
+    return errors;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
 
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
     try {
-      await login({ email, password });
+      await login({
+        email: formData.email,
+        password: formData.password,
+        rememberMe: formData.rememberMe,
+      });
       router.push("/");
     } catch (error) {
       // Error is handled by the store
+      console.error("Login failed:", error);
     }
   };
 
@@ -42,6 +97,7 @@ export default function LoginPage() {
           <Link href="/" className="text-red-600 text-4xl font-bold">
             ONFLIX
           </Link>
+          <p className="text-gray-400 mt-2">Welcome back!</p>
         </div>
 
         <Card className="bg-black/80 border-gray-800">
@@ -67,43 +123,90 @@ export default function LoginPage() {
                 </Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-gray-800 border-gray-600 text-white"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="bg-gray-800 border-gray-600 text-white focus:border-red-500"
                   placeholder="Enter your email"
-                  required
+                  disabled={isLoading}
                 />
+                {validationErrors.email && (
+                  <p className="text-red-500 text-sm">
+                    {validationErrors.email}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-white">
                   Password
                 </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="bg-gray-800 border-gray-600 text-white"
-                  placeholder="Enter your password"
-                  required
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="bg-gray-800 border-gray-600 text-white focus:border-red-500 pr-10"
+                    placeholder="Enter your password"
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                {validationErrors.password && (
+                  <p className="text-red-500 text-sm">
+                    {validationErrors.password}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="rememberMe"
+                  name="rememberMe"
+                  checked={formData.rememberMe}
+                  onCheckedChange={(checked) =>
+                    setFormData((prev) => ({ ...prev, rememberMe: !!checked }))
+                  }
+                  className="border-gray-600 data-[state=checked]:bg-red-600"
                 />
+                <Label htmlFor="rememberMe" className="text-gray-300 text-sm">
+                  Remember me for 30 days
+                </Label>
               </div>
 
               <Button
                 type="submit"
-                className="w-full bg-red-600 hover:bg-red-700"
+                className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50"
                 disabled={isLoading}
               >
-                {isLoading ? <LoadingSpinner size="sm" /> : "Sign In"}
+                {isLoading ? (
+                  <div className="flex items-center">
+                    <LoadingSpinner size="sm" />
+                    <span className="ml-2">Signing in...</span>
+                  </div>
+                ) : (
+                  "Sign In"
+                )}
               </Button>
             </form>
 
             <div className="mt-6 text-center">
               <Link
                 href="/forgot-password"
-                className="text-sm text-gray-400 hover:text-white"
+                className="text-sm text-gray-400 hover:text-white transition-colors"
               >
                 Forgot your password?
               </Link>
@@ -111,7 +214,10 @@ export default function LoginPage() {
 
             <div className="mt-4 text-center">
               <span className="text-gray-400">Don't have an account? </span>
-              <Link href="/register" className="text-white hover:underline">
+              <Link
+                href="/register"
+                className="text-white hover:text-red-400 transition-colors"
+              >
                 Sign up now
               </Link>
             </div>

@@ -1,8 +1,45 @@
 import axios, { AxiosError, AxiosResponse } from 'axios';
+// Add this import to fix the TypeScript errors
+import {
+  LoginCredentials,
+  APIResponse,
+  RegisterData,
+  AuthTokens,
+  User,
+  PaginatedResponse,
+  Content,
+  UserProfile,
+  VideoQuality,
+  ContentVideo
+} from './types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
-// Create axios instance
+// Go API Auth Response Structure (matches your backend)
+interface GoAuthResponse {
+  user: User;
+  access_token: string;
+  refresh_token: string;
+  expires_at: string;
+}
+
+// Go API Token Response Structure
+interface GoTokenResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_at: string;
+}
+
+// Create separate axios instance for refresh (to avoid interceptor loops)
+const refreshApiClient = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Create main axios instance
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
@@ -25,54 +62,125 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor for error handling
+// Flag to prevent multiple simultaneous refresh attempts
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: any) => void;
+  reject: (reason?: any) => void;
+}> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  
+  failedQueue = [];
+};
+
+// Response interceptor for error handling (FIXED to prevent infinite loops)
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      // Token expired, try to refresh
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
-        try {
-          const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-            refreshToken,
-          });
-          const { accessToken } = response.data.data;
-          localStorage.setItem('accessToken', accessToken);
-          
-          // Retry original request
-          if (error.config) {
-            error.config.headers.Authorization = `Bearer ${accessToken}`;
-            return axios.request(error.config);
+    const originalRequest = error.config as any;
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // If already refreshing, queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(token => {
+          if (originalRequest) {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return apiClient(originalRequest);
           }
-        } catch (refreshError) {
-          // Refresh failed, redirect to login
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
+        }).catch(err => {
+          return Promise.reject(err);
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      const refreshToken = localStorage.getItem('refreshToken');
+      
+      if (!refreshToken) {
+        // No refresh token, clear auth and redirect
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        processQueue(error, null);
+        isRefreshing = false;
+        
+        // Only redirect if not already on login page
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
           window.location.href = '/login';
         }
-      } else {
-        // No refresh token, redirect to login
-        window.location.href = '/login';
+        return Promise.reject(error);
+      }
+
+      try {
+        // Use separate axios instance for refresh to avoid interceptor loop
+        const response = await refreshApiClient.post('/auth/refresh', {
+          refresh_token: refreshToken, // Use correct field name for Go backend
+        });
+
+        const { access_token, refresh_token } = response.data.data;
+        
+        // Update tokens
+        localStorage.setItem('accessToken', access_token);
+        if (refresh_token) {
+          localStorage.setItem('refreshToken', refresh_token);
+        }
+
+        // Update the authorization header for the original request
+        if (originalRequest) {
+          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        }
+
+        processQueue(null, access_token);
+        isRefreshing = false;
+
+        // Retry the original request
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        // Refresh failed, clear auth and redirect
+        processQueue(refreshError, null);
+        isRefreshing = false;
+        
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        
+        // Only redirect if not already on login page
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+        
+        return Promise.reject(refreshError);
       }
     }
+
     return Promise.reject(error);
   }
 );
 
-// API functions
+// API functions - Updated to match Go backend response structure
 export const authAPI = {
   login: (credentials: LoginCredentials) =>
-    apiClient.post<APIResponse<{ user: User; tokens: AuthTokens }>>('/auth/login', credentials),
+    apiClient.post<APIResponse<GoAuthResponse>>('/auth/login', credentials),
     
-  register: (data: RegisterData) =>
-    apiClient.post<APIResponse<{ user: User; tokens: AuthTokens }>>('/auth/register', data),
+  register: (data: RegisterData) =>  // ← Uses RegisterData (backend format)
+    apiClient.post<APIResponse<GoAuthResponse>>('/auth/register', data),
     
   logout: () =>
     apiClient.post<APIResponse>('/auth/logout'),
     
   refreshToken: (refreshToken: string) =>
-    apiClient.post<APIResponse<AuthTokens>>('/auth/refresh', { refreshToken }),
+    refreshApiClient.post<APIResponse<GoTokenResponse>>('/auth/refresh', { 
+      refresh_token: refreshToken 
+    }),
     
   forgotPassword: (email: string) =>
     apiClient.post<APIResponse>('/auth/forgot-password', { email }),
@@ -82,11 +190,28 @@ export const authAPI = {
     
   verifyEmail: (token: string) =>
     apiClient.post<APIResponse>('/auth/verify-email', { token }),
+    
+  resendVerification: (email: string) =>
+    apiClient.post<APIResponse>('/auth/resend-verification', { email }),
+    
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiClient.post<APIResponse>('/auth/change-password', { 
+      current_password: currentPassword, 
+      new_password: newPassword 
+    }),
+    
+  validateToken: () =>
+    apiClient.post<APIResponse<User>>('/auth/validate'),
 };
 
+// Content API - Based on actual Go backend routes
 export const contentAPI = {
-  browse: (params?: { page?: number; limit?: number }) =>
+  // Public content routes (no auth required)
+  browse: (params?: { page?: number; limit?: number; genre?: string; type?: string }) =>
     apiClient.get<PaginatedResponse<Content[]>>('/content', { params }),
+    
+  getById: (id: string) =>
+    apiClient.get<APIResponse<Content>>(`/content/${id}`),
     
   getFeatured: () =>
     apiClient.get<APIResponse<Content[]>>('/content/featured'),
@@ -100,52 +225,127 @@ export const contentAPI = {
   getOriginals: () =>
     apiClient.get<APIResponse<Content[]>>('/content/originals'),
     
-  getById: (id: string) =>
-    apiClient.get<APIResponse<Content>>(`/content/${id}`),
-    
-  getSimilar: (id: string) =>
-    apiClient.get<APIResponse<Content[]>>(`/content/${id}/similar`),
+  getSimilarContent: (id: string, params?: { limit?: number }) =>
+    apiClient.get<APIResponse<Content[]>>(`/content/${id}/similar`, { params }),
     
   getTrailers: (id: string) =>
-    apiClient.get<APIResponse<ContentVideo[]>>(`/content/${id}/trailers`),
+    apiClient.get<APIResponse<any[]>>(`/content/${id}/trailers`),
     
-  search: (params: SearchFilters) =>
-    apiClient.get<PaginatedResponse<Content[]>>('/content/search', { params }),
+  // Search (requires "q" parameter, not "query")
+  search: (query: string, params?: { page?: number; limit?: number; type?: string; genre?: string }) =>
+    apiClient.get<PaginatedResponse<Content[]>>('/content/search', { 
+      params: { q: query, ...params } 
+    }),
     
   getSearchSuggestions: (query: string) =>
-    apiClient.get<APIResponse<string[]>>('/content/search/suggestions', { params: { query } }),
+    apiClient.get<APIResponse<string[]>>('/content/search/suggestions', { 
+      params: { q: query } 
+    }),
     
+  // Genres and categories
   getGenres: () =>
-    apiClient.get<APIResponse<Genre[]>>('/content/genres'),
+    apiClient.get<APIResponse<{ genre: string; count: number }[]>>('/content/genres'),
     
   getByGenre: (genre: string, params?: { page?: number; limit?: number }) =>
     apiClient.get<PaginatedResponse<Content[]>>(`/content/genres/${genre}`, { params }),
     
-  // TV Show specific
+  getCategories: () =>
+    apiClient.get<APIResponse<any[]>>('/content/categories'),
+    
+  getByCategory: (category: string, params?: { page?: number; limit?: number }) =>
+    apiClient.get<PaginatedResponse<Content[]>>(`/content/categories/${category}`, { params }),
+    
+  // TV Shows
   getSeasons: (showId: string) =>
-    apiClient.get<APIResponse<Season[]>>(`/content/tv-shows/${showId}/seasons`),
+    apiClient.get<APIResponse<any[]>>(`/content/tv-shows/${showId}/seasons`),
     
   getSeason: (showId: string, seasonNumber: number) =>
-    apiClient.get<APIResponse<Season>>(`/content/tv-shows/${showId}/seasons/${seasonNumber}`),
+    apiClient.get<APIResponse<any>>(`/content/tv-shows/${showId}/seasons/${seasonNumber}`),
     
   getEpisodes: (showId: string, seasonNumber: number) =>
-    apiClient.get<APIResponse<Episode[]>>(`/content/tv-shows/${showId}/seasons/${seasonNumber}/episodes`),
+    apiClient.get<APIResponse<any[]>>(`/content/tv-shows/${showId}/seasons/${seasonNumber}/episodes`),
     
   getEpisode: (showId: string, seasonNumber: number, episodeNumber: number) =>
-    apiClient.get<APIResponse<Episode>>(`/content/tv-shows/${showId}/seasons/${seasonNumber}/episodes/${episodeNumber}`),
+    apiClient.get<APIResponse<any>>(`/content/tv-shows/${showId}/seasons/${seasonNumber}/episodes/${episodeNumber}`),
     
-  // Streaming (protected)
-  getStreamingUrl: (contentId: string, quality?: VideoQuality) =>
-    apiClient.get<APIResponse<{ streaming_url: string; video_info: ContentVideo }>>(`/content/${contentId}/stream${quality ? `/${quality}` : ''}`),
+  // Streaming endpoints (require subscription)
+  stream: (contentId: string) =>
+    apiClient.get<APIResponse<{ streaming_url: string; video_info: ContentVideo }>>(`/content/${contentId}/stream`),
+    
+  streamWithQuality: (contentId: string, quality: VideoQuality) =>
+    apiClient.get<APIResponse<{ streaming_url: string; video_info: ContentVideo }>>(`/content/${contentId}/stream/${quality}`),
     
   getStreamingToken: (contentId: string) =>
     apiClient.post<APIResponse<{ token: string; expires_at: string }>>(`/content/${contentId}/stream/token`),
     
   streamEpisode: (showId: string, seasonNumber: number, episodeNumber: number) =>
     apiClient.get<APIResponse<{ streaming_url: string }>>(`/content/tv-shows/${showId}/seasons/${seasonNumber}/episodes/${episodeNumber}/stream`),
+    
+  // Downloads (require subscription)
+  downloadContent: (contentId: string) =>
+    apiClient.post<APIResponse<any>>(`/content/${contentId}/download`),
+    
+  getDownloads: () =>
+    apiClient.get<APIResponse<any[]>>('/content/downloads'),
+    
+  removeDownload: (downloadId: string) =>
+    apiClient.delete<APIResponse>(`/content/downloads/${downloadId}`),
+    
+  // Subtitles
+  getSubtitles: (contentId: string) =>
+    apiClient.get<APIResponse<any[]>>(`/content/${contentId}/subtitles`),
+    
+  getSubtitleFile: (contentId: string, language: string) =>
+    apiClient.get<any>(`/content/${contentId}/subtitles/${language}`),
+    
+  // User interactions (require auth)
+  likeContent: (contentId: string) =>
+    apiClient.post<APIResponse>(`/content/${contentId}/like`),
+    
+  unlikeContent: (contentId: string) =>
+    apiClient.delete<APIResponse>(`/content/${contentId}/like`),
+    
+  rateContent: (contentId: string, rating: number) =>
+    apiClient.post<APIResponse>(`/content/${contentId}/rate`, { rating }),
+    
+  addReview: (contentId: string, review: { title?: string; comment: string; rating: number }) =>
+    apiClient.post<APIResponse>(`/content/${contentId}/review`, review),
+    
+  getReviews: (contentId: string, params?: { page?: number; limit?: number }) =>
+    apiClient.get<PaginatedResponse<any[]>>(`/content/${contentId}/reviews`, { params }),
+    
+  // Continue watching and progress
+  getContinueWatching: () =>
+    apiClient.get<APIResponse<Content[]>>('/content/continue-watching'),
+    
+  updateWatchProgress: (contentId: string, progress: number, duration: number) =>
+    apiClient.post<APIResponse>(`/content/${contentId}/watch-progress`, { 
+      progress, 
+      duration 
+    }),
 };
 
+// Recommendations API (separate routes)
+export const recommendationsAPI = {
+  getRecommendations: () =>
+    apiClient.get<APIResponse<Content[]>>('/recommendations'),
+    
+  getTrendingRecommendations: () =>
+    apiClient.get<APIResponse<Content[]>>('/recommendations/trending'),
+    
+  getBecauseYouWatchedRecommendations: (contentId: string) =>
+    apiClient.get<APIResponse<Content[]>>(`/recommendations/because-you-watched/${contentId}`),
+    
+  submitRecommendationFeedback: (feedback: { 
+    recommendation_id: string; 
+    feedback: 'like' | 'dislike' | 'not_interested' 
+  }) =>
+    apiClient.post<APIResponse>('/recommendations/feedback', feedback),
+};
+
+// User API - Based on actual Go backend routes
 export const userAPI = {
+  // Profile management
   getProfile: () =>
     apiClient.get<APIResponse<User>>('/user/profile'),
     
@@ -153,22 +353,68 @@ export const userAPI = {
     apiClient.put<APIResponse<User>>('/user/profile', data),
     
   changePassword: (currentPassword: string, newPassword: string) =>
-    apiClient.put<APIResponse>('/user/change-password', { currentPassword, newPassword }),
+    apiClient.put<APIResponse>('/user/change-password', { 
+      current_password: currentPassword, 
+      new_password: newPassword 
+    }),
     
-  getWatchlist: (params?: { page?: number; limit?: number }) =>
-    apiClient.get<PaginatedResponse<Content[]>>('/user/watchlist', { params }),
+  // Watchlist management (requires profile_id query param)
+  getWatchlist: (profileId: string, params?: { page?: number; limit?: number }) =>
+    apiClient.get<APIResponse<Content[]>>('/user/watchlist', { 
+      params: { profile_id: profileId, ...params } 
+    }),
     
-  addToWatchlist: (contentId: string) =>
-    apiClient.post<APIResponse>('/user/watchlist', { contentId }),
+  addToWatchlist: (contentId: string, profileId: string) =>
+    apiClient.post<APIResponse>(`/user/watchlist/${contentId}`, null, { 
+      params: { profile_id: profileId } 
+    }),
     
-  removeFromWatchlist: (contentId: string) =>
-    apiClient.delete<APIResponse>(`/user/watchlist/${contentId}`),
+  removeFromWatchlist: (contentId: string, profileId: string) =>
+    apiClient.delete<APIResponse>(`/user/watchlist/${contentId}`, { 
+      params: { profile_id: profileId } 
+    }),
     
-  getWatchHistory: (params?: { page?: number; limit?: number }) =>
-    apiClient.get<PaginatedResponse<any[]>>('/user/watch-history', { params }),
+  clearWatchlist: (profileId: string) =>
+    apiClient.post<APIResponse>('/user/watchlist/clear', null, { 
+      params: { profile_id: profileId } 
+    }),
     
-  updateWatchProgress: (contentId: string, progress: number, duration: number) =>
-    apiClient.post<APIResponse>('/user/watch-progress', { contentId, progress, duration }),
+  // Watch history (requires profile_id query param)
+  getWatchHistory: (profileId: string, params?: { page?: number; limit?: number }) =>
+    apiClient.get<APIResponse<any[]>>('/user/history', { 
+      params: { profile_id: profileId, ...params } 
+    }),
+    
+  updateWatchProgress: (data: { 
+    content_id: string; 
+    profile_id: string; 
+    progress: number; 
+    duration: number; 
+  }) =>
+    apiClient.post<APIResponse>('/user/history/progress', data),
+    
+  removeFromHistory: (contentId: string, profileId: string) =>
+    apiClient.delete<APIResponse>(`/user/history/${contentId}`, { 
+      params: { profile_id: profileId } 
+    }),
+    
+  clearWatchHistory: (profileId: string) =>
+    apiClient.post<APIResponse>('/user/history/clear', null, { 
+      params: { profile_id: profileId } 
+    }),
+    
+  // Preferences
+  getPreferences: () =>
+    apiClient.get<APIResponse<any>>('/user/preferences'),
+    
+  updatePreferences: (preferences: any) =>
+    apiClient.put<APIResponse>('/user/preferences', preferences),
+    
+  updateLanguage: (language: string) =>
+    apiClient.put<APIResponse>('/user/preferences/language', { language }),
+    
+  updateMaturityRating: (maturityRating: string) =>
+    apiClient.put<APIResponse>('/user/preferences/maturity-rating', { maturity_rating: maturityRating }),
 };
 
 // Admin API

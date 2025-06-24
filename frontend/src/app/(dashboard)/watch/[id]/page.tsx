@@ -46,7 +46,7 @@ export default function WatchPage() {
   }
 
   return (
-    <ProtectedRoute requireSubscription>
+    <ProtectedRoute>
       <div className="min-h-screen bg-black">
         <VideoPlayer
           contentId={contentId}

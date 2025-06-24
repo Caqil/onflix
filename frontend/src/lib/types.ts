@@ -366,14 +366,25 @@ export interface LoginCredentials {
 }
 
 export interface RegisterData {
-  email: string
-  password: string
-  firstName: string
-  lastName: string
-  acceptTerms: boolean
+  email: string;
+  password: string;
+  first_name: string;    // ← Changed from firstName
+  last_name: string;     // ← Changed from lastName
+  phone?: string;        // ← Optional field Go backend accepts
+acceptTerms: boolean
   newsletter?: boolean
 }
 
+// Frontend form data (what the UI collects)
+export interface RegisterFormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  acceptTerms: boolean;
+  newsletter?: boolean;
+}
 export interface SearchFilters {
   query?: string
   genre?: string

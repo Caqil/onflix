@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { ContentGrid } from "@/components/content/ContentGrid";
 import { GenreFilter } from "@/components/content/GenreFilter";
-import { useContent } from "@/hooks/useContent";
+import { useContentStore } from "@/hooks/useContent";
 import { LoadingSpinner } from "@/components/layout/LoadingSpinner";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { contentAPI } from "@/lib/api";
@@ -13,7 +13,7 @@ import { Content, Genre } from "@/lib/types";
 
 export default function BrowsePage() {
   const searchParams = useSearchParams();
-  const { genres } = useContent();
+  const { genres } = useContentStore();
   const [content, setContent] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);

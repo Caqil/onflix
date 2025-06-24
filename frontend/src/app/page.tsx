@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useContent } from "@/hooks/useContent";
+import { useContentStore } from "@/hooks/useContent";
 import { Header } from "@/components/layout/Header";
 import { LoadingSpinner } from "@/components/layout/LoadingSpinner";
 import { ContentRow } from "@/components/home/ContentRow";
@@ -20,12 +20,10 @@ export default function HomePage() {
     newReleases,
     originals,
     isLoading,
-    loadHomeContent,
-  } = useContent();
+  } = useContentStore();
 
   useEffect(() => {
     if (isAuthenticated) {
-      loadHomeContent();
     }
   }, [isAuthenticated]);
 
