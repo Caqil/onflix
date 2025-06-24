@@ -1,11 +1,11 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useAuthContext } from "../../context";
 import { useEffect, useState } from 'react';
 import { RouteGuardConfig } from "../../types";
 import { PageLoading } from "../common/loading";
 import { RouteGuard } from "../../lib/auth/guards";
 import { NotFound } from "../common/error-handling";
+import { useAuth } from "@/hooks/use-auth";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -21,7 +21,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
   redirectTo,
 }) => {
   const { isAuthenticated, user, isAdmin, hasActiveSubscription } =
-    useAuthContext();
+    useAuth();
   const router = useRouter();
   const [isChecking, setIsChecking] = useState(true);
 

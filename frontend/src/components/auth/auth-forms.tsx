@@ -22,9 +22,10 @@ import {
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
-import { useAppContext, useAuthContext } from "../../context";
 import { toast } from "sonner";
 import { Checkbox } from "../ui/checkbox";
+import { useAppContext } from "@/context";
+import { useAuth } from "@/hooks/use-auth";
 interface LoginFormProps {
   onSuccess?: () => void;
   redirectTo?: string;
@@ -35,9 +36,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   redirectTo = "/",
 }) => {
   const router = useRouter();
-  const { login } = useAuthContext();
+  const { login } = useAuth();
   const { addNotification } = useAppContext();
-  const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -52,10 +52,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     try {
       await login(data);
 
-      toast({
-        title: "Success",
-        description: SUCCESS_MESSAGES.LOGIN_SUCCESS,
-      });
+      toast.success(SUCCESS_MESSAGES.LOGIN_SUCCESS);
 
       addNotification({
         type: "success",
@@ -66,11 +63,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       onSuccess?.();
       router.push(redirectTo);
     } catch (error: any) {
-      toast({
-        title: "Login Failed",
-        description: error.message || "Invalid email or password",
-        variant: "destructive",
-      });
+      toast(error.message || "Invalid email or password");
     }
   };
 
@@ -149,7 +142,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   redirectTo = "/",
 }) => {
   const router = useRouter();
-  const { register: registerUser } = useAuthContext();
+  const { register: registerUser } = useAuth();
   const { addNotification } = useAppContext();
   const [showPassword, setShowPassword] = useState(false);
 
@@ -177,7 +170,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       onSuccess?.();
       router.push(redirectTo);
     } catch (error: any) {
-      toast.error( error.message || "Failed to create account");
+      toast.error(error.message || "Failed to create account");
     }
   };
 

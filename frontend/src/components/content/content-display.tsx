@@ -17,8 +17,8 @@ import {
   truncateText,
 } from "@/lib/utils/helpers";
 import { cn } from "@/lib/utils/helpers";
-import { useAuthContext } from "@/context";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 interface ContentCardProps {
   content: Content;
@@ -37,7 +37,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({
   onWatchlistChange,
   className,
 }) => {
-  const { isAuthenticated, canStream } = useAuthContext();
+  const { isAuthenticated, canStream } = useAuth();
   const { addNotification } = useAppContext();
   const [isAddingToWatchlist, setIsAddingToWatchlist] = React.useState(false);
 

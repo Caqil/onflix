@@ -23,10 +23,11 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { Badge } from "../ui/badge";
-import { useAppContext, useAuthContext } from "../../context";
+import { useAppContext } from "../../context";
 import { useDebounce } from "../../hooks/use-debounce";
 import { cn } from "@/lib/utils/helpers";
 import { APP_CONFIG } from "@/lib/utils/constants";
+import { useAuth } from "@/hooks/use-auth";
 
 interface HeaderProps {
   className?: string;
@@ -35,7 +36,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ className }) => {
   const router = useRouter();
   const { user, isAuthenticated, logout, isAdmin, hasActiveSubscription } =
-    useAuthContext();
+    useAuth();
   const {
     sidebarOpen,
     setSidebarOpen,
