@@ -2,7 +2,7 @@
 import { ApiResponse } from '@/types/api';
 import { API_ENDPOINTS } from '../utils/constants';
 import apiClient from './client';
-import { AuthResponse, User } from '@/types/auth';
+import { AuthResponse, ForgotPasswordRequest, LoginRequest, RefreshTokenRequest, RegisterRequest, ResetPasswordRequest, User, VerifyEmailRequest } from '@/types/auth';
 
 
 

@@ -148,3 +148,27 @@ export interface UserPreferences {
   parental_controls: boolean;
   mature_content: boolean;
 }
+export interface UpdateProfileRequest {
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
+  phone?: string;
+  date_of_birth?: string;
+  country?: string;
+  language?: string;
+  timezone?: string;
+}
+
+export interface CreateSubscriptionRequest {
+  plan_id: string;
+  payment_method_id: string;
+  billing_address?: BillingAddress;
+}
+
+export interface UpdateSubscriptionRequest {
+  plan_id?: string;
+}
+
+export interface AddPaymentMethodRequest {
+  payment_method_id: string;
+}

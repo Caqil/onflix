@@ -144,7 +144,7 @@ export interface StreamingStats {
   peak_concurrent_streams: number;
   total_watch_time: number;
   average_session_duration: number;
-  streams_by_quality: Record<VideoQuality, number>;
+  streams_by_quality: Record<string, number>;
   streams_by_device: Record<string, number>;
   bandwidth_usage: number;
   cdn_costs: number;
@@ -241,4 +241,55 @@ export interface SecuritySettings {
     api_requests_per_minute: number;
     streaming_requests_per_minute: number;
   };
+}
+export interface BanUserRequest {
+  reason: string;
+  duration?: number; // days, 0 for permanent
+  notify_user?: boolean;
+}
+
+export interface CreateContentRequest {
+  title: string;
+  description: string;
+  type: 'movie' | 'tv_show';
+  genre: string[];
+  release_date: string;
+  duration?: number;
+  poster_url: string;
+  backdrop_url?: string;
+  video_url?: string;
+  trailer_url?: string;
+  cast?: string[];
+  director?: string;
+  producer?: string;
+  writer?: string;
+  imdb_id?: string;
+  tmdb_id?: number;
+  content_rating?: string;
+  languages?: string[];
+  countries?: string[];
+  budget?: number;
+  revenue?: number;
+}
+
+export interface UpdateContentRequest {
+  title?: string;
+  description?: string;
+  genre?: string[];
+  poster_url?: string;
+  backdrop_url?: string;
+  video_url?: string;
+  trailer_url?: string;
+  cast?: string[];
+  director?: string;
+  producer?: string;
+  writer?: string;
+  content_rating?: string;
+  languages?: string[];
+  countries?: string[];
+  budget?: number;
+  revenue?: number;
+  status?: 'draft' | 'published' | 'archived';
+  featured?: boolean;
+  trending?: boolean;
 }

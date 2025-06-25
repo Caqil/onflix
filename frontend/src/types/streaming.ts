@@ -120,3 +120,29 @@ export interface DeviceInfo {
   ip_address?: string;
   location?: string;
 }
+
+export interface DownloadResponse {
+  download_id: string;
+  download_url: string;
+  expires_at: string;
+  file_size: string;
+  quality: string;
+  format: string;
+}
+
+export interface StreamingTokenResponse {
+  token: string;
+  expires_at: string;
+}
+
+export interface ContentAnalyticsResponse {
+  content_id: string;
+  total_views: number;
+  unique_viewers: number;
+  average_watch_time: number;
+  completion_rate: number;
+  ratings_average: number;
+  ratings_count: number;
+  reviews_count: number;
+  downloads_count: number;
+}

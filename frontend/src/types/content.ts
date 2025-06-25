@@ -126,3 +126,21 @@ export interface ContentReview {
   };
 }
 
+export interface RatingRequest {
+  rating: number; // 1-5
+}
+
+export interface ReviewRequest {
+  title: string;
+  comment: string;
+  rating: number; // 1-5
+}
+
+export interface WatchProgressRequest {
+  progress: number; // seconds watched
+  duration: number; // total duration in seconds
+}
+
+export interface DownloadRequest {
+  quality: string; // "480p", "720p", "1080p", "4k"
+}

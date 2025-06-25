@@ -1,7 +1,7 @@
 import { ApiResponse } from '@/types/api';
-import { Content, ContentFilters, SearchParams, Season } from '@/types/content';
+import { Content, ContentFilters, RatingRequest, ReviewRequest, SearchParams, Season, WatchProgress } from '@/types/content';
 import apiClient from './client';
-import { Download, DownloadResponse, StreamingResponse, StreamingToken, Subtitle, WatchProgress } from './streaming';
+import { Download, DownloadResponse, StreamingResponse, StreamingToken, Subtitle } from '@/types';
 
 
 

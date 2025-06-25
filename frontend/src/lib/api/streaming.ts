@@ -1,5 +1,5 @@
 import { ApiResponse } from "@/types/api";
-import { Download, PlaybackSession, QualityOption, StreamingResponse, StreamingToken, Subtitle } from "@/types/streaming";
+import { Download, DownloadResponse, PlaybackSession, QualityOption, StreamingResponse, StreamingToken, Subtitle } from "@/types/streaming";
 import apiClient from "./client";
 import { WatchProgress } from "@/types/content";
 
@@ -61,7 +61,7 @@ class StreamingAPI {
 
   async getSubtitleFile(contentId: string, language: string): Promise<string> {
     const response = await apiClient.get(`/api/v1/content/${contentId}/subtitles/${language}`);
-    return response.data;
+    return response.data as string;
   }
 
   async uploadSubtitle(contentId: string, file: File, language: string): Promise<ApiResponse> {

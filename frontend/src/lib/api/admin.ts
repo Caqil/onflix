@@ -1,7 +1,7 @@
 
 import { ApiResponse } from "@/types/api";
 import apiClient from "./client";
-import { AdminUser, ContentAnalytics, DashboardStats, PlatformSettings, RevenueStats, UserFilters } from "@/types/admin";
+import { AdminUser, BanUserRequest, ContentAnalytics, CreateContentRequest, DashboardStats, PlatformSettings, RevenueStats, UpdateContentRequest, UserFilters } from "@/types/admin";
 import { Content } from "@/types/content";
 
 

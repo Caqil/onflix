@@ -1,3 +1,4 @@
+"use client";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -20,17 +21,17 @@ import {
 import { APP_CONFIG } from "@/lib/utils/constants";
 import { cn } from "@/lib/utils/helpers";
 
-export const metadata: Metadata = {
-  title: "Home",
-  description:
-    "Discover premium movies and TV shows. Stream unlimited entertainment with crystal clear quality.",
-  openGraph: {
-    title: `${APP_CONFIG.NAME} - Premium Streaming Platform`,
-    description:
-      "Discover premium movies and TV shows. Stream unlimited entertainment with crystal clear quality.",
-    images: ["/og-home.png"],
-  },
-};
+// export const metadata: Metadata = {
+//   title: "Home",
+//   description:
+//     "Discover premium movies and TV shows. Stream unlimited entertainment with crystal clear quality.",
+//   openGraph: {
+//     title: `${APP_CONFIG.NAME} - Premium Streaming Platform`,
+//     description:
+//       "Discover premium movies and TV shows. Stream unlimited entertainment with crystal clear quality.",
+//     images: ["/og-home.png"],
+//   },
+// };
 
 // Featured content section
 function FeaturedSection() {

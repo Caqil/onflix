@@ -1,5 +1,5 @@
 import { ApiResponse } from "@/types/api";
-import { Invoice, PaymentMethod, Subscription, UsageStats, UserProfile, WatchHistoryItem, WatchlistItem } from "@/types/user";
+import { AddPaymentMethodRequest, CreateSubscriptionRequest, Invoice, PaymentMethod, Subscription, UpdateProfileRequest, UpdateSubscriptionRequest, UsageStats, UserProfile, WatchHistoryItem, WatchlistItem } from "@/types/user";
 import apiClient from "./client";
 
 
