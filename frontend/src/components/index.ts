@@ -4,7 +4,12 @@ export { Sidebar } from './layout/sidebar';
 export { AdminLayout } from './layout/admin-layout';
 
 // Authentication Components
-export { LoginForm, RegisterForm } from './auth/auth-forms';
+export { 
+  LoginForm, 
+  RegisterForm,
+  ForgotPasswordForm,
+  ResetPasswordForm 
+} from './auth/auth-forms';
 export { AuthGuard, ProtectedRoute } from './auth/auth-guard';
 
 // Content Components

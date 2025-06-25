@@ -163,7 +163,6 @@ build/Release
 
 # TypeScript compiled output
 dist/
-lib/
 
 # Rollup.js default build output
 dist/
