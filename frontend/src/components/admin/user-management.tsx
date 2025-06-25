@@ -50,8 +50,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDebounce } from "@/hooks/use-debounce";
 import { AdminUser, BanUserData, UserFilters } from "@/types";
 import { usePagination } from "@/hooks/use-pagination";
-import { adminAPI } from "@/lib/api";
 import { formatDate, formatRelativeTime } from "@/lib/utils/helpers";
+import adminAPI from "@/lib/api/admin";
+import { useApi } from "@/hooks/use-api";
 
 interface UserTableProps {
   className?: string;
@@ -79,13 +80,14 @@ export const UserManagementTable: React.FC<UserTableProps> = ({
     goToPreviousPage,
     updatePaginationMeta,
   } = usePagination({ initialLimit: 20 });
-
   const filters: UserFilters = {
     page: currentPage,
     limit: itemsPerPage,
+    role: selectedRole === "admin" || selectedRole === "user" ? (selectedRole as "admin" | "user") : undefined,
+    status: (selectedStatus === "active" || selectedStatus === "inactive" || selectedStatus === "banned"
+      ? selectedStatus
+      : undefined) as "active" | "inactive" | "banned" | undefined,
     search: debouncedSearch || undefined,
-    role: selectedRole || undefined,
-    status: selectedStatus || undefined,
   };
 
   const {

@@ -1,25 +1,7 @@
+import { ApiResponse } from '@/types/api';
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { toast } from 'sonner';
-export interface ApiResponse<T = any> {
-  success: boolean;
-  message: string;
-  data?: T;
-  pagination?: {
-    current_page: number;
-    total_pages: number;
-    total_items: number;
-    items_per_page: number;
-    has_next: boolean;
-    has_previous: boolean;
-  };
-}
 
-export interface ApiError {
-  success: false;
-  message: string;
-  error?: string;
-  code?: string;
-}
 
 class ApiClient {
   private client: AxiosInstance;

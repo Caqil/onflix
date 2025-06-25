@@ -1,53 +1,10 @@
 
+import { ApiResponse } from '@/types/api';
 import { API_ENDPOINTS } from '../utils/constants';
-import apiClient, { ApiResponse } from './client';
+import apiClient from './client';
+import { AuthResponse, User } from '@/types/auth';
 
-export interface User {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: 'user' | 'admin';
-  avatar_url?: string;
-  created_at: string;
-  subscription_status?: 'active' | 'inactive' | 'cancelled' | 'past_due';
-}
 
-export interface AuthResponse {
-  user: User;
-  access_token: string;
-  refresh_token: string;
-  expires_at: string;
-}
-
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  first_name: string;
-  last_name: string;
-}
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface RefreshTokenRequest {
-  refresh_token: string;
-}
-
-export interface ForgotPasswordRequest {
-  email: string;
-}
-
-export interface ResetPasswordRequest {
-  token: string;
-  password: string;
-}
-
-export interface VerifyEmailRequest {
-  token: string;
-}
 
 class AuthAPI {
   // User Registration

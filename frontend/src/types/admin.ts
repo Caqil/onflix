@@ -1,4 +1,9 @@
-import { Content, ContentStatus, ContentType, Subscription, SubscriptionStatus, User, UserRole, VideoQuality } from ".";
+import { VideoQuality } from "@/lib/utils/streaming";
+import { User } from "./auth";
+import { Content } from "./content";
+import { Subscription } from "./user";
+import { ContentStatus, ContentType, SubscriptionStatus, UserRole } from '.';
+
 
 export interface DashboardStats {
   total_users: number;

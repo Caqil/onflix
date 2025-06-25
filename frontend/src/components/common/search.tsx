@@ -447,7 +447,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
     limit: itemsPerPage,
   }));
 
-  const { search, results, isSearching, error, pagination } =
+  const { search, results, isSearching, error } =
     useContentSearch();
 
   // Update search when query or filters change

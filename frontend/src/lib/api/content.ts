@@ -1,107 +1,9 @@
-import apiClient, { ApiResponse } from './client';
+import { ApiResponse } from '@/types/api';
+import { Content, ContentFilters, SearchParams, Season } from '@/types/content';
+import apiClient from './client';
+import { Download, DownloadResponse, StreamingResponse, StreamingToken, Subtitle, WatchProgress } from './streaming';
 
-export interface Content {
-  id: string;
-  title: string;
-  description: string;
-  type: 'movie' | 'tv_show';
-  genre: string[];
-  release_date: string;
-  poster_url: string;
-  backdrop_url: string;
-  rating: number;
-  duration?: number; // for movies
-  cast?: string[];
-  director?: string;
-  trailer_url?: string;
-  seasons?: Season[]; // for TV shows
-}
 
-export interface Season {
-  season_number: number;
-  episode_count: number;
-  release_date: string;
-  poster_url: string;
-  episodes?: Episode[];
-}
-
-export interface Episode {
-  episode_number: number;
-  title: string;
-  description: string;
-  duration: number;
-  air_date: string;
-  thumbnail_url?: string;
-}
-
-export interface ContentFilters {
-  page?: number;
-  limit?: number;
-  genre?: string;
-  type?: 'movie' | 'tv_show';
-  sort?: 'title' | 'rating' | 'release_date' | 'popularity';
-  order?: 'asc' | 'desc';
-}
-
-export interface SearchParams {
-  q: string;
-  page?: number;
-  limit?: number;
-  type?: 'movie' | 'tv_show';
-}
-
-export interface StreamingResponse {
-  streaming_url: string;
-  video_info: {
-    duration: number;
-    quality: string;
-    format: string;
-    bitrate?: string;
-  };
-}
-
-export interface StreamingToken {
-  token: string;
-  expires_at: string;
-}
-
-export interface DownloadResponse {
-  download_id: string;
-  download_url: string;
-  expires_at: string;
-  file_size: string;
-}
-
-export interface Download {
-  id: string;
-  content_id: string;
-  title: string;
-  quality: string;
-  file_size: string;
-  downloaded_at: string;
-  expires_at: string;
-}
-
-export interface Subtitle {
-  language: string;
-  label: string;
-  url: string;
-}
-
-export interface WatchProgress {
-  progress: number;
-  duration: number;
-}
-
-export interface RatingRequest {
-  rating: number; // 1-5
-}
-
-export interface ReviewRequest {
-  title: string;
-  comment: string;
-  rating: number;
-}
 
 class ContentAPI {
   // Public content endpoints
@@ -186,7 +88,7 @@ class ContentAPI {
 
   async getSubtitleFile(contentId: string, language: string): Promise<string> {
     const response = await apiClient.get(`/api/v1/content/${contentId}/subtitles/${language}`);
-    return response.data;
+    return response.data as string;
   }
 
   async rateContent(contentId: string, rating: RatingRequest): Promise<ApiResponse> {

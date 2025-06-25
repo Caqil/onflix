@@ -1,5 +1,5 @@
+import { User } from '@/types/auth';
 import { authManager } from './manager';
-import { User } from '@/lib/api/auth';
 
 export interface RouteGuardConfig {
   requireAuth?: boolean;

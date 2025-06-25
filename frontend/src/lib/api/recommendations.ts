@@ -1,39 +1,7 @@
-import apiClient, { ApiResponse } from './client';
-import { Content } from './content';
-
-export interface Recommendation {
-  id: string;
-  title: string;
-  type: 'movie' | 'tv_show';
-  poster_url: string;
-  rating: number;
-  reason: string;
-  confidence_score?: number;
-  genre: string[];
-}
-
-export interface RecommendationFeedback {
-  recommendation_id: string;
-  feedback: 'like' | 'dislike' | 'not_interested' | 'already_watched';
-  reason?: string;
-}
-
-export interface PersonalizedFilters {
-  exclude_watched?: boolean;
-  preferred_genres?: string[];
-  min_rating?: number;
-  content_type?: 'movie' | 'tv_show';
-  release_year_range?: {
-    start: number;
-    end: number;
-  };
-}
-
-export interface SimilarContentRequest {
-  content_id: string;
-  limit?: number;
-  exclude_watched?: boolean;
-}
+import { ApiResponse } from "@/types/api";
+import apiClient from "./client";
+import { Content } from "@/types/content";
+import { PersonalizedFilters, Recommendation, RecommendationFeedback, SimilarContentRequest } from "@/types/recommendations";
 
 class RecommendationsAPI {
   // Get Personalized Recommendations

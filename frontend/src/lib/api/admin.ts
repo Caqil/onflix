@@ -1,105 +1,10 @@
-import apiClient, { ApiResponse } from './client';
-import { User } from './auth';
-import { Content } from './content';
 
-export interface DashboardStats {
-  total_users: number;
-  active_subscriptions: number;
-  total_content: number;
-  monthly_revenue: number;
-  recent_signups: number;
-}
+import { ApiResponse } from "@/types/api";
+import apiClient from "./client";
+import { AdminUser, ContentAnalytics, DashboardStats, PlatformSettings, RevenueStats, UserFilters } from "@/types/admin";
+import { Content } from "@/types/content";
 
-export interface AdminUser {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: string;
-  subscription_status: string;
-  created_at: string;
-}
 
-export interface UserFilters {
-  page?: number;
-  limit?: number;
-  role?: 'user' | 'admin';
-  status?: 'active' | 'inactive' | 'banned';
-  search?: string;
-}
-
-export interface CreateContentRequest {
-  title: string;
-  description: string;
-  type: 'movie' | 'tv_show';
-  genre: string[];
-  release_date: string;
-  duration?: number;
-  poster_url: string;
-  video_url?: string;
-  backdrop_url?: string;
-  cast?: string[];
-  director?: string;
-  trailer_url?: string;
-}
-
-export interface UpdateContentRequest {
-  title?: string;
-  description?: string;
-  genre?: string[];
-  release_date?: string;
-  duration?: number;
-  poster_url?: string;
-  video_url?: string;
-  backdrop_url?: string;
-  cast?: string[];
-  director?: string;
-  trailer_url?: string;
-  status?: 'draft' | 'published' | 'archived';
-}
-
-export interface BanUserRequest {
-  reason: string;
-  duration?: number; // days, 0 for permanent
-}
-
-export interface ContentAnalytics {
-  content_id: string;
-  title: string;
-  views: number;
-  watch_time: number;
-  completion_rate: number;
-  rating: number;
-  revenue: number;
-}
-
-export interface RevenueStats {
-  total_revenue: number;
-  monthly_revenue: number;
-  subscription_revenue: number;
-  average_revenue_per_user: number;
-  revenue_growth: number;
-}
-
-export interface PlatformSettings {
-  general: {
-    site_name: string;
-    site_description: string;
-    maintenance_mode: boolean;
-    registration_enabled: boolean;
-  };
-  streaming: {
-    max_quality: string;
-    concurrent_streams: number;
-    download_enabled: boolean;
-    offline_viewing_days: number;
-  };
-  payments: {
-    currency: string;
-    tax_rate: number;
-    trial_period_days: number;
-  };
-}
 
 class AdminAPI {
   // Dashboard
@@ -218,14 +123,14 @@ class AdminAPI {
     const response = await apiClient.get(`/api/v1/admin/reports/users?format=${format}`, {
       responseType: 'blob',
     });
-    return response.data;
+    return response.data as Blob;
   }
 
   async exportRevenue(period: 'month' | 'quarter' | 'year', format: 'csv' | 'xlsx' = 'csv'): Promise<Blob> {
     const response = await apiClient.get(`/api/v1/admin/reports/revenue?period=${period}&format=${format}`, {
       responseType: 'blob',
     });
-    return response.data;
+    return response.data as Blob;
   }
 }
 

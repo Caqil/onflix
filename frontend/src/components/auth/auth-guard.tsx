@@ -76,12 +76,14 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
   return <>{children}</>;
 };
 
+import type { UserRole } from "../../types";
+
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAuth?: boolean;
   requireAdmin?: boolean;
   requireSubscription?: boolean;
-  allowedRoles?: string[];
+  allowedRoles?: UserRole[];
   fallback?: React.ReactNode;
   redirectTo?: string;
 }

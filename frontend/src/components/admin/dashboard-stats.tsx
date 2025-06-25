@@ -10,8 +10,9 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "../../lib/utils/helpers";
 import { useApi } from "../../hooks/use-api";
-import { adminAPI, DashboardStats } from "../../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { DashboardStats } from "@/types";
+import adminAPI from "@/lib/api/admin";
 interface StatsCardProps {
   title: string;
   value: string | number;

@@ -1,5 +1,6 @@
-import { User, AuthResponse } from '@/lib/api/auth';
+
 import authAPI from '@/lib/api/auth';
+import { AuthResponse, User } from '@/types';
 
 export interface AuthState {
   user: User | null;
