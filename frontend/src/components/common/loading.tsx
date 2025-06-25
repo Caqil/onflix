@@ -1,94 +1,146 @@
 "use client";
+
 import React from "react";
-import { Loader2 } from "lucide-react";
-import { Skeleton } from "../ui/skeleton";
-import { cn } from "../../lib/utils/helpers";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils/helpers";
 
-interface LoadingSpinnerProps {
-  size?: "sm" | "md" | "lg";
+// Basic loading spinner
+export const LoadingSpinner: React.FC<{
   className?: string;
-}
-
-export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
-  size = "md",
-  className,
-}) => {
+  size?: "sm" | "md" | "lg";
+}> = ({ className, size = "md" }) => {
   const sizeClasses = {
-    sm: "h-4 w-4",
-    md: "h-6 w-6",
-    lg: "h-8 w-8",
+    sm: "w-4 h-4",
+    md: "w-6 h-6",
+    lg: "w-8 h-8",
   };
 
   return (
-    <Loader2 className={cn("animate-spin", sizeClasses[size], className)} />
+    <div
+      className={cn(
+        "animate-spin rounded-full border-2 border-primary border-t-transparent",
+        sizeClasses[size],
+        className
+      )}
+    />
   );
 };
 
-interface PageLoadingProps {
-  message?: string;
-}
-
-export const PageLoading: React.FC<PageLoadingProps> = ({
+// Full page loading
+export const PageLoading: React.FC<{ message?: string }> = ({
   message = "Loading...",
 }) => {
   return (
     <div className="flex items-center justify-center min-h-[400px]">
-      <div className="text-center">
-        <LoadingSpinner size="lg" className="mx-auto mb-4" />
+      <div className="text-center space-y-4">
+        <LoadingSpinner size="lg" />
         <p className="text-muted-foreground">{message}</p>
       </div>
     </div>
   );
 };
 
-interface ContentLoadingSkeletonProps {
-  count?: number;
-  className?: string;
-}
-
-export const ContentLoadingSkeleton: React.FC<ContentLoadingSkeletonProps> = ({
-  count = 10,
-  className,
+// Content card skeleton
+const ContentCardSkeleton: React.FC<{ viewMode?: "grid" | "list" }> = ({
+  viewMode = "grid",
 }) => {
+  if (viewMode === "list") {
+    return (
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex gap-4">
+            {/* Poster skeleton */}
+            <Skeleton className="w-24 aspect-[2/3] rounded-lg flex-shrink-0" />
+
+            {/* Content info skeleton */}
+            <div className="flex-1 space-y-3">
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-3/4" />
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-16" />
+                  <Skeleton className="h-5 w-12" />
+                  <Skeleton className="h-5 w-16" />
+                  <Skeleton className="h-5 w-12" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+
+              <div className="flex gap-2">
+                <Skeleton className="h-5 w-16" />
+                <Skeleton className="h-5 w-20" />
+                <Skeleton className="h-5 w-14" />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Grid view skeleton
+  return (
+    <Card className="overflow-hidden">
+      <Skeleton className="aspect-[2/3] w-full" />
+      <CardContent className="p-4 space-y-2">
+        <Skeleton className="h-5 w-full" />
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-4 w-full" />
+        <div className="flex gap-2">
+          <Skeleton className="h-5 w-16" />
+          <Skeleton className="h-5 w-20" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Content grid skeleton
+export const ContentLoadingSkeleton: React.FC<{
+  count?: number;
+  viewMode?: "grid" | "list";
+  className?: string;
+}> = ({ count = 12, viewMode = "grid", className }) => {
   return (
     <div
       className={cn(
-        "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4",
+        viewMode === "grid"
+          ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
+          : "space-y-4",
         className
       )}
     >
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="space-y-3">
-          <Skeleton className="w-full h-72 rounded-lg" />
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-3 w-3/4" />
-            <div className="flex gap-1">
-              <Skeleton className="h-5 w-12 rounded-full" />
-              <Skeleton className="h-5 w-16 rounded-full" />
-            </div>
-          </div>
-        </div>
+      {Array.from({ length: count }).map((_, index) => (
+        <ContentCardSkeleton key={index} viewMode={viewMode} />
       ))}
     </div>
   );
 };
 
-interface TableLoadingSkeletonProps {
+// Table loading skeleton
+export const TableLoadingSkeleton: React.FC<{
   rows?: number;
   columns?: number;
-}
-
-export const TableLoadingSkeleton: React.FC<TableLoadingSkeletonProps> = ({
-  rows = 5,
-  columns = 6,
-}) => {
+  className?: string;
+}> = ({ rows = 5, columns = 4, className }) => {
   return (
-    <div className="space-y-3">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex space-x-4">
-          {Array.from({ length: columns }).map((_, j) => (
-            <Skeleton key={j} className="h-4 flex-1" />
+    <div className={cn("space-y-3", className)}>
+      {/* Header skeleton */}
+      <div className="flex gap-4 p-4 border-b">
+        {Array.from({ length: columns }).map((_, index) => (
+          <Skeleton key={index} className="h-4 flex-1" />
+        ))}
+      </div>
+
+      {/* Row skeletons */}
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <div key={rowIndex} className="flex gap-4 p-4">
+          {Array.from({ length: columns }).map((_, colIndex) => (
+            <Skeleton key={colIndex} className="h-4 flex-1" />
           ))}
         </div>
       ))}
@@ -96,36 +148,90 @@ export const TableLoadingSkeleton: React.FC<TableLoadingSkeletonProps> = ({
   );
 };
 
-interface ButtonLoadingProps {
+// Button loading state
+export const ButtonLoading: React.FC<{
+  loading?: boolean;
   children: React.ReactNode;
-  isLoading?: boolean;
-  loadingText?: string;
   className?: string;
-  [key: string]: any;
-}
-
-export const ButtonLoading: React.FC<ButtonLoadingProps> = ({
-  children,
-  isLoading = false,
-  loadingText,
-  className,
-  ...props
-}) => {
+  disabled?: boolean;
+}> = ({ loading = false, children, className, disabled, ...props }) => {
   return (
     <button
-      className={cn("relative", className)}
-      disabled={isLoading}
+      className={cn("flex items-center gap-2", className)}
+      disabled={loading || disabled}
       {...props}
     >
-      {isLoading && (
-        <LoadingSpinner
-          size="sm"
-          className="absolute left-3 top-1/2 transform -translate-y-1/2"
-        />
-      )}
-      <span className={cn(isLoading && "ml-6")}>
-        {isLoading && loadingText ? loadingText : children}
-      </span>
+      {loading && <LoadingSpinner size="sm" />}
+      {children}
     </button>
+  );
+};
+
+// Section loading with title
+export const SectionLoading: React.FC<{
+  title?: string;
+  count?: number;
+  viewMode?: "grid" | "list";
+}> = ({ title, count = 6, viewMode = "grid" }) => {
+  return (
+    <section className="space-y-4">
+      {title && (
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-6 w-32" />
+        </div>
+      )}
+      <ContentLoadingSkeleton count={count} viewMode={viewMode} />
+    </section>
+  );
+};
+
+// Featured content loading
+export const FeaturedContentLoading: React.FC = () => {
+  return (
+    <section className="mb-8">
+      <div className="flex items-center gap-2 mb-4">
+        <Skeleton className="w-5 h-5" />
+        <Skeleton className="h-6 w-40" />
+      </div>
+
+      <Card className="relative rounded-xl overflow-hidden">
+        <Skeleton className="aspect-[21/9] w-full" />
+        <div className="absolute inset-0 p-8 md:p-12 flex items-end">
+          <div className="space-y-4 max-w-2xl">
+            <Skeleton className="h-6 w-20" />
+            <Skeleton className="h-10 w-96" />
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-5 w-2/3" />
+            </div>
+            <div className="flex gap-4">
+              <Skeleton className="h-10 w-32" />
+              <Skeleton className="h-10 w-24" />
+            </div>
+          </div>
+        </div>
+      </Card>
+    </section>
+  );
+};
+
+// Trending section loading
+export const TrendingSectionLoading: React.FC = () => {
+  return (
+    <section className="mb-8">
+      <div className="flex items-center gap-2 mb-4">
+        <Skeleton className="w-5 h-5" />
+        <Skeleton className="h-6 w-32" />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={index} className="space-y-2">
+            <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+            <Skeleton className="h-4 w-full" />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 };

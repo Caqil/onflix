@@ -1,250 +1,358 @@
 "use client";
-import React from "react";
-import Image from "next/image";
+
+import React, { useState } from "react";
 import Link from "next/link";
-import { Star, Play, Plus, Check, Clock, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useAppContext } from "@/context/app-context";
-import userAPI from "@/lib/api/user";
-import type { Content, WatchlistItem } from "@/types";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  formatDate,
-  formatDuration,
-  getGenreDisplayName,
-  getImageUrl,
-  truncateText,
-} from "@/lib/utils/helpers";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Play,
+  Plus,
+  Star,
+  Clock,
+  Calendar,
+  Heart,
+  Info,
+  Download,
+  Share,
+  Check,
+} from "lucide-react";
 import { cn } from "@/lib/utils/helpers";
-import { toast } from "sonner";
-import { useAuth } from "@/hooks/use-auth";
+import type { Content } from "@/types";
 
 interface ContentCardProps {
   content: Content;
-  size?: "sm" | "md" | "lg";
+  viewMode?: "grid" | "list";
   showDetails?: boolean;
-  isInWatchlist?: boolean;
-  onWatchlistChange?: () => void;
   className?: string;
 }
 
 export const ContentCard: React.FC<ContentCardProps> = ({
   content,
-  size = "md",
+  viewMode = "grid",
   showDetails = true,
-  isInWatchlist = false,
-  onWatchlistChange,
   className,
 }) => {
-  const { isAuthenticated, canStream } = useAuth();
-  const { addNotification } = useAppContext();
-  const [isAddingToWatchlist, setIsAddingToWatchlist] = React.useState(false);
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
-  const sizeClasses = {
-    sm: "w-32 h-48",
-    md: "w-48 h-72",
-    lg: "w-64 h-96",
+  const handleWatchlistToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsInWatchlist(!isInWatchlist);
+    // TODO: Call API to add/remove from watchlist
   };
 
-  const handleWatchlistToggle = async () => {
-    if (!isAuthenticated) {
-      toast("Please sign in to add content to your watchlist.");
-      return;
-    }
-
-    setIsAddingToWatchlist(true);
-    try {
-      if (isInWatchlist) {
-        await userAPI.removeFromWatchlist(content.id);
-        addNotification({
-          type: "success",
-          title: "Removed from Watchlist",
-          message: `"${content.title}" has been removed from your watchlist.`,
-        });
-      } else {
-        await userAPI.addToWatchlist(content.id);
-        addNotification({
-          type: "success",
-          title: "Added to Watchlist",
-          message: `"${content.title}" has been added to your watchlist.`,
-        });
-      }
-      onWatchlistChange?.();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to update watchlist");
-    } finally {
-      setIsAddingToWatchlist(false);
-    }
+  const handleShare = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // TODO: Implement share functionality
+    navigator.share?.({
+      title: content.title,
+      text: content.description,
+      url: `/content/${content.id}`,
+    });
   };
 
-  const handlePlay = () => {
-    if (!canStream()) {
-      toast("Please upgrade to a premium plan to start streaming.");
-      return;
-    }
+  const formatDuration = (duration: number) => {
+    const hours = Math.floor(duration / 60);
+    const minutes = duration % 60;
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   };
 
+  const formatRating = (rating: number) => {
+    return rating.toFixed(1);
+  };
+
+  if (viewMode === "list") {
+    return (
+      <Card
+        className={cn(
+          "group cursor-pointer hover:shadow-lg transition-all duration-200",
+          className
+        )}
+      >
+        <Link href={`/content/${content.id}`}>
+          <CardContent className="p-4">
+            <div className="flex gap-4">
+              {/* Poster */}
+              <div className="relative w-24 aspect-[2/3] rounded-lg overflow-hidden flex-shrink-0">
+                {!imageError ? (
+                  <img
+                    src={content.poster_url}
+                    alt={content.title}
+                    className={cn(
+                      "w-full h-full object-cover transition-opacity duration-200",
+                      imageLoaded ? "opacity-100" : "opacity-0"
+                    )}
+                    onLoad={() => setImageLoaded(true)}
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <Play className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                )}
+
+                {!imageLoaded && !imageError && (
+                  <div className="absolute inset-0 bg-muted animate-pulse" />
+                )}
+              </div>
+
+              {/* Content Info */}
+              <div className="flex-1 space-y-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-semibold text-lg line-clamp-1">
+                      {content.title}
+                    </h3>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <Badge variant="outline" className="text-xs">
+                        {content.type === "movie" ? "Movie" : "TV Show"}
+                      </Badge>
+
+                      {content.rating && (
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                          <span>{formatRating(content.rating)}</span>
+                        </div>
+                      )}
+
+                      {content.duration && (
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatDuration(content.duration)}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        <span>
+                          {new Date(content.release_date).getFullYear()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleWatchlistToggle}
+                          >
+                            {isInWatchlist ? (
+                              <Check className="w-4 h-4" />
+                            ) : (
+                              <Plus className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {isInWatchlist
+                            ? "Remove from Watchlist"
+                            : "Add to Watchlist"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleShare}
+                          >
+                            <Share className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Share</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </div>
+
+                {showDetails && (
+                  <>
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {content.description}
+                    </p>
+
+                    <div className="flex flex-wrap gap-1">
+                      {content.genres.slice(0, 3).map((genre) => (
+                        <Badge
+                          key={genre}
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          {genre}
+                        </Badge>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Link>
+      </Card>
+    );
+  }
+
+  // Grid view
   return (
     <Card
       className={cn(
-        "group relative overflow-hidden transition-all hover:scale-105",
+        "group cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden",
         className
       )}
     >
-      <div className={cn("relative", sizeClasses[size])}>
-        <Image
-          src={getImageUrl(content.poster_url, "400")}
-          alt={content.title}
-          fill
-          className="object-cover transition-transform group-hover:scale-110"
-          sizes="(max-width: 768px) 160px, (max-width: 1024px) 200px, 256px"
-        />
+      <Link href={`/content/${content.id}`}>
+        <div className="relative aspect-[2/3] overflow-hidden">
+          {/* Poster Image */}
+          {!imageError ? (
+            <img
+              src={content.poster_url}
+              alt={content.title}
+              className={cn(
+                "w-full h-full object-cover transition-all duration-300 group-hover:scale-105",
+                imageLoaded ? "opacity-100" : "opacity-0"
+              )}
+              onLoad={() => setImageLoaded(true)}
+              onError={() => {
+                setImageError(true);
+                setImageLoaded(true);
+              }}
+            />
+          ) : (
+            <div className="w-full h-full bg-muted flex items-center justify-center">
+              <Play className="w-12 h-12 text-muted-foreground" />
+            </div>
+          )}
 
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="absolute bottom-4 left-4 right-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Button size="sm" onClick={handlePlay} asChild>
-                <Link href={`/watch/${content.id}`}>
-                  <Play className="w-4 h-4 mr-1" />
-                  Play
-                </Link>
+          {!imageLoaded && !imageError && (
+            <div className="absolute inset-0 bg-muted animate-pulse" />
+          )}
+
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <Button size="lg" className="rounded-full">
+                <Play className="w-5 h-5 mr-2" />
+                Play
               </Button>
 
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={handleWatchlistToggle}
-                disabled={isAddingToWatchlist}
-              >
-                {isInWatchlist ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  <Plus className="w-4 h-4" />
-                )}
-              </Button>
+              <div className="flex items-center gap-2 justify-center">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="rounded-full"
+                  onClick={handleWatchlistToggle}
+                >
+                  {isInWatchlist ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="rounded-full"
+                  onClick={handleShare}
+                >
+                  <Share className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
+
+          {/* Content Type Badge */}
+          <Badge className="absolute top-2 left-2">
+            {content.type === "movie" ? "Movie" : "TV"}
+          </Badge>
+
+          {/* Rating */}
+          {content.rating && (
+            <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/70 text-white px-2 py-1 rounded text-xs">
+              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+              <span>{formatRating(content.rating)}</span>
+            </div>
+          )}
         </div>
 
-        {/* Rating Badge */}
-        {content.rating > 0 && (
-          <Badge className="absolute top-2 right-2 bg-black/60">
-            <Star className="w-3 h-3 mr-1 fill-yellow-400 text-yellow-400" />
-            {content.rating.toFixed(1)}
-          </Badge>
-        )}
-
-        {/* Duration/Episodes Badge */}
-        {content.duration && (
-          <Badge variant="secondary" className="absolute top-2 left-2">
-            <Clock className="w-3 h-3 mr-1" />
-            {formatDuration(content.duration)}
-          </Badge>
-        )}
-      </div>
-
-      {showDetails && (
-        <CardContent className="p-4">
-          <h3 className="font-semibold text-sm mb-1 line-clamp-2">
-            <Link
-              href={`/content/${content.id}`}
-              className="hover:text-primary"
-            >
-              {content.title}
-            </Link>
+        {/* Content Info */}
+        <CardContent className="p-4 space-y-2">
+          <h3 className="font-semibold line-clamp-2 min-h-[2.5rem]">
+            {content.title}
           </h3>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-            <span className="capitalize">{content.type.replace("_", " ")}</span>
-            <span>•</span>
-            <span className="flex items-center">
-              <Calendar className="w-3 h-3 mr-1" />
-              {new Date(content.release_date).getFullYear()}
-            </span>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>{new Date(content.release_date).getFullYear()}</span>
+            {content.duration && (
+              <>
+                <span>•</span>
+                <span>{formatDuration(content.duration)}</span>
+              </>
+            )}
           </div>
 
-          <div className="flex flex-wrap gap-1 mb-2">
-            {content.genres.slice(0, 2).map((genre) => (
-              <Badge key={genre} variant="outline" className="text-xs">
-                {getGenreDisplayName(genre)}
-              </Badge>
-            ))}
-          </div>
+          {showDetails && (
+            <>
+              <p className="text-sm text-muted-foreground line-clamp-2">
+                {content.description}
+              </p>
 
-          {content.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2">
-              {truncateText(content.description, 80)}
-            </p>
+              <div className="flex flex-wrap gap-1">
+                {content.genres.slice(0, 2).map((genre) => (
+                  <Badge key={genre} variant="secondary" className="text-xs">
+                    {genre}
+                  </Badge>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
-      )}
+      </Link>
     </Card>
   );
 };
 
 interface ContentGridProps {
   content: Content[];
-  isLoading?: boolean;
-  error?: string | null;
-  emptyMessage?: string;
-  watchlistItems?: WatchlistItem[];
-  onWatchlistChange?: () => void;
+  viewMode?: "grid" | "list";
+  showDetails?: boolean;
   className?: string;
 }
 
 export const ContentGrid: React.FC<ContentGridProps> = ({
   content,
-  isLoading = false,
-  error = null,
-  emptyMessage = "No content found",
-  watchlistItems = [],
-  onWatchlistChange,
+  viewMode = "grid",
+  showDetails = true,
   className,
 }) => {
-  if (error) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <p className="text-muted-foreground">{error}</p>
-          <Button
-            variant="outline"
-            onClick={() => window.location.reload()}
-            className="mt-4"
-          >
-            Try Again
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div
-        className={cn(
-          "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4",
-          className
-        )}
-      >
-        {Array.from({ length: 10 }).map((_, i) => (
-          <div key={i} className="space-y-3">
-            <div className="w-full h-72 bg-muted animate-pulse rounded-lg" />
-            <div className="space-y-2">
-              <div className="h-4 bg-muted animate-pulse rounded" />
-              <div className="h-3 bg-muted animate-pulse rounded w-3/4" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   if (content.length === 0) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">{emptyMessage}</p>
+      <div className={cn("text-center py-12", className)}>
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+          <Play className="w-8 h-8 text-muted-foreground" />
+        </div>
+        <h3 className="text-lg font-semibold mb-2">No content available</h3>
+        <p className="text-muted-foreground">
+          Check back later for new content or try a different search.
+        </p>
       </div>
     );
   }
@@ -252,7 +360,9 @@ export const ContentGrid: React.FC<ContentGridProps> = ({
   return (
     <div
       className={cn(
-        "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4",
+        viewMode === "grid"
+          ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
+          : "space-y-4",
         className
       )}
     >
@@ -260,8 +370,8 @@ export const ContentGrid: React.FC<ContentGridProps> = ({
         <ContentCard
           key={item.id}
           content={item}
-          isInWatchlist={watchlistItems.some((w) => w.id === item.id)}
-          onWatchlistChange={onWatchlistChange}
+          viewMode={viewMode}
+          showDetails={showDetails}
         />
       ))}
     </div>
