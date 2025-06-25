@@ -1,15 +1,18 @@
 import { ApiResponse } from '@/types/api';
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { toast } from 'sonner';
 
 
 class ApiClient {
   private client: AxiosInstance;
   private baseURL: string;
+  private accessToken: string | null = null;
+  private refreshToken: string | null = null;
+  private isRefreshing: boolean = false;
+  private refreshSubscribers: Array<(token: string) => void> = [];
 
-  constructor() {
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-    
+  constructor(baseURL: string = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080') {
+    this.baseURL = baseURL;
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: 30000,
@@ -19,50 +22,86 @@ class ApiClient {
     });
 
     this.setupInterceptors();
+    this.initializeTokensFromStorage();
   }
 
-  private setupInterceptors() {
-    // Request interceptor for auth token
+  private initializeTokensFromStorage(): void {
+    if (typeof window !== 'undefined') {
+      this.accessToken = localStorage.getItem('onflix_access_token');
+      this.refreshToken = localStorage.getItem('onflix_refresh_token');
+      
+      // Set initial authorization header if token exists
+      if (this.accessToken) {
+        this.client.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`;
+      }
+    }
+  }
+
+  private setupInterceptors(): void {
+    // Request interceptor
     this.client.interceptors.request.use(
       (config) => {
-        const token = this.getToken();
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        // Always use the latest token from memory
+        if (this.accessToken) {
+          config.headers.Authorization = `Bearer ${this.accessToken}`;
         }
         return config;
       },
-      (error) => {
-        return Promise.reject(error);
-      }
+      (error) => Promise.reject(error)
     );
 
-    // Response interceptor for error handling
+    // Response interceptor
     this.client.interceptors.response.use(
-      (response: AxiosResponse<ApiResponse>) => {
-        return response;
-      },
-      async (error) => {
-        const originalRequest = error.config;
+      (response) => response,
+      async (error: AxiosError) => {
+        const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-        // Handle 401 unauthorized
+        // Handle 401 errors
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
 
+          // Don't try to refresh on auth endpoints
+          if (originalRequest.url?.includes('/auth/')) {
+            return Promise.reject(error);
+          }
+
+          if (this.isRefreshing) {
+            // If already refreshing, wait for it to complete
+            return new Promise((resolve) => {
+              this.refreshSubscribers.push((token: string) => {
+                if (originalRequest.headers) {
+                  originalRequest.headers.Authorization = `Bearer ${token}`;
+                }
+                resolve(this.client(originalRequest));
+              });
+            });
+          }
+
+          this.isRefreshing = true;
+
           try {
-            const refreshToken = this.getRefreshToken();
-            if (refreshToken) {
-              const response = await this.refreshAccessToken(refreshToken);
-              if (response.success) {
-                this.setToken(response.data.access_token);
-                this.setRefreshToken(response.data.refresh_token);
-                originalRequest.headers.Authorization = `Bearer ${response.data.access_token}`;
-                return this.client(originalRequest);
+            const newToken = await this.refreshAccessToken();
+            if (newToken) {
+              // Update the failed request with new token
+              if (originalRequest.headers) {
+                originalRequest.headers.Authorization = `Bearer ${newToken}`;
               }
+              
+              // Notify all waiting requests
+              this.refreshSubscribers.forEach(cb => cb(newToken));
+              this.refreshSubscribers = [];
+              
+              return this.client(originalRequest);
             }
           } catch (refreshError) {
-            this.clearTokens();
-            window.location.href = '/login';
+            // Refresh failed, clear tokens and redirect to login
+            this.clearAuthTokens();
+            if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+              window.location.href = '/login';
+            }
             return Promise.reject(refreshError);
+          } finally {
+            this.isRefreshing = false;
           }
         }
 
@@ -73,63 +112,84 @@ class ApiClient {
     );
   }
 
-  private handleError(error: any) {
-    let message = 'An unexpected error occurred';
+  private handleError(error: AxiosError): void {
+    const response = error.response?.data as any;
+    const message = response?.message || error.message || 'An error occurred';
 
-    if (error.response?.data?.message) {
-      message = error.response.data.message;
-    } else if (error.message) {
-      message = error.message;
-    }
-
-    // Don't show toast for auth endpoints to avoid spam
+    // Don't show error toasts for auth endpoints to avoid spam
     if (!error.config?.url?.includes('/auth/')) {
-      toast(message);
+      toast.error(message);
     }
   }
 
-  private async refreshAccessToken(refreshToken: string): Promise<ApiResponse> {
-    const response = await axios.post(`${this.baseURL}/api/v1/auth/refresh`, {
-      refresh_token: refreshToken,
-    });
-    return response.data;
+  private async refreshAccessToken(): Promise<string | null> {
+    if (!this.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    try {
+      const response = await axios.post(`${this.baseURL}/api/v1/auth/refresh`, {
+        refresh_token: this.refreshToken,
+      });
+
+      const data = response.data;
+      if (data.success && data.data) {
+        const { access_token, refresh_token } = data.data;
+        this.setAuthTokens(access_token, refresh_token);
+        return access_token;
+      }
+      
+      throw new Error('Invalid refresh response');
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      throw error;
+    }
   }
 
-  // Token management
-  private getToken(): string | null {
+  // Public token management methods
+  public setAuthTokens(accessToken: string, refreshToken: string): void {
+    this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
+    
+    // Update axios default header
+    this.client.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+    
+    // Store in localStorage
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('access_token');
+      localStorage.setItem('onflix_access_token', accessToken);
+      localStorage.setItem('onflix_refresh_token', refreshToken);
     }
-    return null;
   }
 
-  private getRefreshToken(): string | null {
+  public clearAuthTokens(): void {
+    this.accessToken = null;
+    this.refreshToken = null;
+    
+    // Remove from axios headers
+    delete this.client.defaults.headers.common['Authorization'];
+    
+    // Clear from localStorage
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('refresh_token');
-    }
-    return null;
-  }
-
-  private setToken(token: string): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('access_token', token);
+      localStorage.removeItem('onflix_access_token');
+      localStorage.removeItem('onflix_refresh_token');
+      localStorage.removeItem('onflix_user');
+      localStorage.removeItem('onflix_expires_at');
     }
   }
 
-  private setRefreshToken(token: string): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('refresh_token', token);
-    }
+  public getAccessToken(): string | null {
+    return this.accessToken;
   }
 
-  private clearTokens(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-    }
+  public getRefreshToken(): string | null {
+    return this.refreshToken;
   }
 
-  // Public methods
+  public isAuthenticated(): boolean {
+    return !!this.accessToken;
+  }
+
+  // HTTP methods
   public async get<T>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     const response = await this.client.get(url, config);
     return response.data;
@@ -156,39 +216,35 @@ class ApiClient {
   }
 
   // File upload method
-  public async upload<T>(url: string, formData: FormData, onProgress?: (progress: number) => void): Promise<ApiResponse<T>> {
+  public async upload<T>(
+    url: string, 
+    formData: FormData, 
+    onProgress?: (progressEvent: any) => void
+  ): Promise<ApiResponse<T>> {
     const response = await this.client.post(url, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-      onUploadProgress: (progressEvent) => {
-        if (onProgress && progressEvent.total) {
-          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress(progress);
-        }
-      },
+      onUploadProgress: onProgress,
     });
     return response.data;
   }
 
-  // Health check
-  public async healthCheck(): Promise<ApiResponse> {
-    const response = await this.client.get('/health');
-    return response.data;
-  }
+  // Download method
+  public async download(url: string, filename?: string): Promise<void> {
+    const response = await this.client.get(url, {
+      responseType: 'blob',
+    });
 
-  // Token methods for external use
-  public setAuthTokens(accessToken: string, refreshToken: string): void {
-    this.setToken(accessToken);
-    this.setRefreshToken(refreshToken);
-  }
-
-  public clearAuthTokens(): void {
-    this.clearTokens();
-  }
-
-  public getAccessToken(): string | null {
-    return this.getToken();
+    const blob = new Blob([response.data]);
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename || 'download';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(downloadUrl);
   }
 }
 

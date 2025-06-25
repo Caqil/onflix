@@ -24,9 +24,9 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { toast } from "sonner";
 import { Checkbox } from "../ui/checkbox";
-import { useAppContext } from "@/context";
 import { useAuth } from "@/hooks/use-auth";
 import { z } from "zod";
+import { useAppContext } from "@/context/app-context";
 
 // Validation schemas for forgot password and reset password
 const forgotPasswordSchema = z.object({

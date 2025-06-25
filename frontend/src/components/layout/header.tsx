@@ -23,11 +23,11 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { Badge } from "../ui/badge";
-import { useAppContext } from "../../context";
 import { useDebounce } from "../../hooks/use-debounce";
 import { cn } from "@/lib/utils/helpers";
 import { APP_CONFIG } from "@/lib/utils/constants";
 import { useAuth } from "@/hooks/use-auth";
+import { useAppContext } from "@/context/app-context";
 
 interface HeaderProps {
   className?: string;

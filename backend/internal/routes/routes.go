@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"net/http"
 	"onflix/internal/middleware"
 	"onflix/internal/services"
 
@@ -15,7 +16,30 @@ func SetupRoutes(router *gin.Engine, services *services.Services) {
 	router.Use(middleware.CORSMiddleware())
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
+	// Serve static files
+	router.Static("/static", "./web/static")
+	router.StaticFS("/templates", http.Dir("./web/templates"))
 
+	// Frontend routes
+	router.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/app")
+	})
+
+	router.GET("/app", func(c *gin.Context) {
+		c.File("./web/templates/user/index.html")
+	})
+
+	router.GET("/app/*path", func(c *gin.Context) {
+		c.File("./web/templates/user/index.html")
+	})
+
+	router.GET("/admin", func(c *gin.Context) {
+		c.File("./web/templates/admin/index.html")
+	})
+
+	router.GET("/admin/*path", func(c *gin.Context) {
+		c.File("./web/templates/admin/index.html")
+	})
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": "onflix"})

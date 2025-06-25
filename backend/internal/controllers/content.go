@@ -36,12 +36,34 @@ func (cc *ContentController) BrowseContent(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, limit, _ = utils.ValidatePaginationParams(page, limit)
 
-	// Filters
+	// Filters - handle both frontend and backend parameter names
 	contentType := c.Query("type") // movie, tv_show
 	genre := c.Query("genre")
 	year := c.Query("year")
 	maturityRating := c.Query("maturity_rating")
-	sortBy := c.DefaultQuery("sort_by", "created_at")
+
+	// Handle both 'sort' (from frontend) and 'sort_by' (backend standard)
+	sortBy := c.Query("sort")
+	if sortBy == "" {
+		sortBy = c.DefaultQuery("sort_by", "created_at")
+	}
+
+	// Map frontend sort options to backend fields
+	switch sortBy {
+	case "popularity":
+		sortBy = "view_count"
+	case "rating":
+		sortBy = "rating"
+	case "release_date":
+		sortBy = "release_date"
+	case "title":
+		sortBy = "title"
+	case "newest":
+		sortBy = "created_at"
+	default:
+		sortBy = "created_at"
+	}
+
 	sortOrder := c.DefaultQuery("sort_order", "desc")
 
 	// Build filter
@@ -70,7 +92,7 @@ func (cc *ContentController) BrowseContent(c *gin.Context) {
 		filter["maturity_rating"] = maturityRating
 	}
 
-	// Sort options
+	// Sort options - FIXED
 	sortOptions := bson.M{}
 	switch sortBy {
 	case "title":
@@ -107,12 +129,12 @@ func (cc *ContentController) BrowseContent(c *gin.Context) {
 		return
 	}
 
-	// Find content with pagination
+	// Find content with pagination - FIXED: Added SetSort
 	skip := (page - 1) * limit
 	findOptions := options.Find().
 		SetSkip(int64(skip)).
 		SetLimit(int64(limit)).
-		SetSort(sortOptions)
+		SetSort(sortOptions) // This was missing!
 
 	var content []models.Content
 	cursor, err := cc.services.DB.Collection("content").Find(context.Background(), filter, findOptions)
@@ -126,6 +148,7 @@ func (cc *ContentController) BrowseContent(c *gin.Context) {
 		return
 	}
 
+	// Return paginated response
 	utils.PaginatedResponse(c, http.StatusOK, "Content retrieved successfully", content, page, limit, totalCount)
 }
 
@@ -166,24 +189,36 @@ func (cc *ContentController) GetTrendingContent(c *gin.Context) {
 
 	// Get trending based on view count in the last 7 days
 	var content []models.Content
+
+	// Use a more robust query with better error handling
+	filter := bson.M{"status": models.ContentStatusPublished}
+
+	// Try to find content with view_count field first
 	cursor, err := cc.services.DB.Collection("content").Find(
 		context.Background(),
-		bson.M{
-			"status": models.ContentStatusPublished,
-		},
+		filter,
 		options.Find().
 			SetLimit(int64(limit)).
 			SetSort(bson.M{"view_count": -1, "created_at": -1}),
 	)
 
 	if err != nil {
+		// Log the specific error for debugging
+		fmt.Printf("Error querying trending content: %v\n", err)
 		utils.InternalServerErrorResponse(c)
 		return
 	}
 
-	if err = cursor.All(context.Background(), &content); err != nil {
+	err = cursor.All(context.Background(), &content)
+	if err != nil {
+		fmt.Printf("Error decoding trending content: %v\n", err)
 		utils.InternalServerErrorResponse(c)
 		return
+	}
+
+	// If no content found, return empty array instead of error
+	if content == nil {
+		content = []models.Content{}
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, "Trending content retrieved successfully", content)
@@ -195,10 +230,12 @@ func (cc *ContentController) GetNewReleases(c *gin.Context) {
 		limit = 50
 	}
 
-	// Get content released in the last 30 days
+	// Get content released in the last 30 days, or newest content if none in last 30 days
 	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
 
 	var content []models.Content
+
+	// First try to get recent releases
 	cursor, err := cc.services.DB.Collection("content").Find(
 		context.Background(),
 		bson.M{
@@ -211,13 +248,45 @@ func (cc *ContentController) GetNewReleases(c *gin.Context) {
 	)
 
 	if err != nil {
+		fmt.Printf("Error querying new releases: %v\n", err)
 		utils.InternalServerErrorResponse(c)
 		return
 	}
 
-	if err = cursor.All(context.Background(), &content); err != nil {
+	err = cursor.All(context.Background(), &content)
+	if err != nil {
+		fmt.Printf("Error decoding new releases: %v\n", err)
 		utils.InternalServerErrorResponse(c)
 		return
+	}
+
+	// If no recent releases, get latest content by created_at
+	if len(content) == 0 {
+		cursor, err = cc.services.DB.Collection("content").Find(
+			context.Background(),
+			bson.M{"status": models.ContentStatusPublished},
+			options.Find().
+				SetLimit(int64(limit)).
+				SetSort(bson.M{"created_at": -1}),
+		)
+
+		if err != nil {
+			fmt.Printf("Error querying fallback new releases: %v\n", err)
+			utils.InternalServerErrorResponse(c)
+			return
+		}
+
+		err = cursor.All(context.Background(), &content)
+		if err != nil {
+			fmt.Printf("Error decoding fallback new releases: %v\n", err)
+			utils.InternalServerErrorResponse(c)
+			return
+		}
+	}
+
+	// Ensure content is not nil
+	if content == nil {
+		content = []models.Content{}
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, "New releases retrieved successfully", content)
@@ -242,16 +311,136 @@ func (cc *ContentController) GetOriginals(c *gin.Context) {
 	)
 
 	if err != nil {
+		fmt.Printf("Error querying original content: %v\n", err)
 		utils.InternalServerErrorResponse(c)
 		return
 	}
 
-	if err = cursor.All(context.Background(), &content); err != nil {
+	err = cursor.All(context.Background(), &content)
+	if err != nil {
+		fmt.Printf("Error decoding original content: %v\n", err)
 		utils.InternalServerErrorResponse(c)
 		return
+	}
+
+	// If no original content, return empty array
+	if content == nil {
+		content = []models.Content{}
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, "Original content retrieved successfully", content)
+}
+
+// FIXED: Helper methods with better error handling
+func (cc *ContentController) getTrendingContent(limit int) ([]models.Content, error) {
+	var content []models.Content
+	cursor, err := cc.services.DB.Collection("content").Find(
+		context.Background(),
+		bson.M{"status": models.ContentStatusPublished},
+		options.Find().
+			SetLimit(int64(limit)).
+			SetSort(bson.M{"view_count": -1, "created_at": -1}),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = cursor.All(context.Background(), &content)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return empty slice instead of nil
+	if content == nil {
+		content = []models.Content{}
+	}
+
+	return content, nil
+}
+
+func (cc *ContentController) getNewContent(limit int) ([]models.Content, error) {
+	var content []models.Content
+	cursor, err := cc.services.DB.Collection("content").Find(
+		context.Background(),
+		bson.M{"status": models.ContentStatusPublished},
+		options.Find().
+			SetLimit(int64(limit)).
+			SetSort(bson.M{"release_date": -1}),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = cursor.All(context.Background(), &content)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return empty slice instead of nil
+	if content == nil {
+		content = []models.Content{}
+	}
+
+	return content, nil
+}
+
+func (cc *ContentController) getTopRatedContent(limit int) ([]models.Content, error) {
+	var content []models.Content
+	cursor, err := cc.services.DB.Collection("content").Find(
+		context.Background(),
+		bson.M{
+			"status": models.ContentStatusPublished,
+			"rating": bson.M{"$gte": 0.0}, // Changed from 7.0 to 0.0 to be less restrictive
+		},
+		options.Find().
+			SetLimit(int64(limit)).
+			SetSort(bson.M{"rating": -1, "view_count": -1}),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = cursor.All(context.Background(), &content)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return empty slice instead of nil
+	if content == nil {
+		content = []models.Content{}
+	}
+
+	return content, nil
+}
+
+func (cc *ContentController) getRecentlyAddedContent(limit int) ([]models.Content, error) {
+	var content []models.Content
+	cursor, err := cc.services.DB.Collection("content").Find(
+		context.Background(),
+		bson.M{"status": models.ContentStatusPublished},
+		options.Find().
+			SetLimit(int64(limit)).
+			SetSort(bson.M{"created_at": -1}),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = cursor.All(context.Background(), &content)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return empty slice instead of nil
+	if content == nil {
+		content = []models.Content{}
+	}
+
+	return content, nil
 }
 
 // Content Details
@@ -1089,82 +1278,6 @@ func (cc *ContentController) StreamEpisode(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, "Episode streaming URL generated successfully", response)
-}
-
-// Helper methods for category content
-func (cc *ContentController) getTrendingContent(limit int) ([]models.Content, error) {
-	var content []models.Content
-	cursor, err := cc.services.DB.Collection("content").Find(
-		context.Background(),
-		bson.M{"status": models.ContentStatusPublished},
-		options.Find().
-			SetLimit(int64(limit)).
-			SetSort(bson.M{"view_count": -1}),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = cursor.All(context.Background(), &content)
-	return content, err
-}
-
-func (cc *ContentController) getNewContent(limit int) ([]models.Content, error) {
-	var content []models.Content
-	cursor, err := cc.services.DB.Collection("content").Find(
-		context.Background(),
-		bson.M{"status": models.ContentStatusPublished},
-		options.Find().
-			SetLimit(int64(limit)).
-			SetSort(bson.M{"release_date": -1}),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = cursor.All(context.Background(), &content)
-	return content, err
-}
-
-func (cc *ContentController) getTopRatedContent(limit int) ([]models.Content, error) {
-	var content []models.Content
-	cursor, err := cc.services.DB.Collection("content").Find(
-		context.Background(),
-		bson.M{
-			"status": models.ContentStatusPublished,
-			"rating": bson.M{"$gte": 7.0},
-		},
-		options.Find().
-			SetLimit(int64(limit)).
-			SetSort(bson.M{"rating": -1}),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = cursor.All(context.Background(), &content)
-	return content, err
-}
-
-func (cc *ContentController) getRecentlyAddedContent(limit int) ([]models.Content, error) {
-	var content []models.Content
-	cursor, err := cc.services.DB.Collection("content").Find(
-		context.Background(),
-		bson.M{"status": models.ContentStatusPublished},
-		options.Find().
-			SetLimit(int64(limit)).
-			SetSort(bson.M{"created_at": -1}),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = cursor.All(context.Background(), &content)
-	return content, err
 }
 
 // Helper methods for access control

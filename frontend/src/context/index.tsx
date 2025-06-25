@@ -1,13 +1,9 @@
-export { AuthProvider } from "./auth-context";
-export { AppProvider, useAppContext } from "./app-context";
-export { StreamingProvider, useStreamingContext } from "./streaming-context";
-
-// Combined provider for easy setup
+"use client";
 import React from "react";
 import { AuthProvider } from "./auth-context";
 import { AppProvider } from "./app-context";
 import { StreamingProvider } from "./streaming-context";
-import { useAuth } from "../hooks/use-auth";
+import { AuthInitialization } from "../components/providers/auth-initialization";
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -16,9 +12,11 @@ interface ProvidersProps {
 export const Providers: React.FC<ProvidersProps> = ({ children }) => {
   return (
     <AppProvider>
-      <AuthProvider>
-        <StreamingProvider>{children}</StreamingProvider>
-      </AuthProvider>
+      <AuthInitialization>
+        <AuthProvider>
+          <StreamingProvider>{children}</StreamingProvider>
+        </AuthProvider>
+      </AuthInitialization>
     </AppProvider>
   );
 };
